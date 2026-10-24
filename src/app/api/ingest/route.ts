@@ -1,0 +1,192 @@
+import { createHash, timingSafeEqual } from 'crypto';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { q } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
+
+const str = z.string().trim().max(20000).nullish();
+
+const LeadIn = z.object({
+  id: z.string().trim().max(200).optional(),
+  kind: z.enum(['cold', 'requirement', 'inbound']).default('cold'),
+  company: str,
+  contact_name: str,
+  contact_role: str,
+  website: str,
+  country: str,
+  segment: str,
+  source_platform: str,
+  source_url: str,
+  email: str,
+  email_source_url: str,
+  phone: str,
+  whatsapp: str,
+  linkedin_url: str,
+  requirement: str,
+  budget: str,
+  pain_point: str,
+  service_fit: str,
+  fit_score: z.coerce.number().int().min(0).max(5).nullish(),
+  approach: str,
+  email_subject: str,
+  email_body: str,
+  whatsapp_message: str,
+  bid_text: str,
+  outlook_link: str,
+  status: z.string().trim().max(40).nullish(),
+  notes: str,
+  first_contacted: z.string().trim().max(40).nullish(),
+  last_touch: z.string().trim().max(40).nullish(),
+  followups_sent: z.coerce.number().int().min(0).max(20).nullish(),
+});
+
+const DocIn = z.object({
+  id: z.string().trim().max(200).optional(),
+  kind: z.string().trim().min(1).max(40),
+  title: z.string().trim().min(1).max(300),
+  date: z.string().trim().max(40).nullish(),
+  body: z.string().max(400000),
+});
+
+const Payload = z.object({
+  agent: z.string().trim().regex(/^[a-z0-9][a-z0-9-]{1,48}$/, 'agent must be a lowercase slug like lead-hunter'),
+  agent_name: z.string().trim().max(80).optional(),
+  agent_description: z.string().trim().max(400).optional(),
+  agent_schedule: z.string().trim().max(80).optional(),
+  run: z
+    .object({
+      status: z.enum(['ok', 'warning', 'error']).default('ok'),
+      summary: z.string().max(8000).optional(),
+      stats: z.record(z.unknown()).optional(),
+    })
+    .optional(),
+  leads: z.array(LeadIn).max(200).default([]),
+  documents: z.array(DocIn).max(50).default([]),
+});
+
+const LEAD_COLUMNS = [
+  'kind', 'company', 'contact_name', 'contact_role', 'website', 'country', 'segment', 'source_platform', 'source_url',
+  'email', 'email_source_url', 'phone', 'whatsapp', 'linkedin_url', 'requirement', 'budget', 'pain_point', 'service_fit',
+  'fit_score', 'approach', 'email_subject', 'email_body', 'whatsapp_message', 'bid_text', 'outlook_link', 'status', 'notes',
+  'first_contacted', 'last_touch', 'followups_sent',
+] as const;
+
+const DATE_COLUMNS = new Set(['first_contacted', 'last_touch']);
+const STICKY = `('won','lost','call_booked','proposal','interested')`;
+
+function authorized(req: Request): boolean {
+  const expected = process.env.INGEST_TOKEN;
+  if (!expected || expected.length < 24) return false;
+  const got = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
+  const a = Buffer.from(got);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function leadId(l: z.infer<typeof LeadIn>): string {
+  if (l.id) return l.id.toLowerCase().replace(/[^a-z0-9.:_-]/g, '-').slice(0, 120);
+  const key = (l.source_url || l.email || l.website || l.company || JSON.stringify(l)).trim().toLowerCase();
+  return `${l.kind}-${createHash('sha1').update(key).digest('hex').slice(0, 12)}`;
+}
+
+function toDateOrNull(v: string | null | undefined): string | null {
+  if (!v) return null;
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
+
+export async function POST(req: Request) {
+  if (!authorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Body must be JSON.' }, { status: 400 });
+  }
+  const parsed = Payload.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues.slice(0, 10) }, { status: 400 });
+  }
+  const p = parsed.data;
+
+  // A new agent slug becomes a new module in the portal automatically.
+  await q(
+    `INSERT INTO agents (slug, name, description, schedule) VALUES ($1, $2, $3, $4)
+     ON CONFLICT (slug) DO UPDATE SET
+       name = CASE WHEN $5 THEN EXCLUDED.name ELSE agents.name END,
+       description = CASE WHEN $6 THEN EXCLUDED.description ELSE agents.description END,
+       schedule = CASE WHEN $7 THEN EXCLUDED.schedule ELSE agents.schedule END`,
+    [
+      p.agent,
+      p.agent_name || p.agent.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+      p.agent_description || '',
+      p.agent_schedule || '',
+      Boolean(p.agent_name),
+      Boolean(p.agent_description),
+      Boolean(p.agent_schedule),
+    ],
+  );
+
+  let created = 0;
+  let updated = 0;
+  for (const lead of p.leads) {
+    const id = leadId(lead);
+    const cols: string[] = [];
+    const vals: unknown[] = [id, p.agent];
+    for (const c of LEAD_COLUMNS) {
+      const v = (lead as Record<string, unknown>)[c];
+      if (v === undefined || v === null || v === '') continue;
+      cols.push(c);
+      vals.push(DATE_COLUMNS.has(c) ? toDateOrNull(v as string) : v);
+    }
+    const placeholders = cols.map((_, i) => `$${i + 3}`);
+    const updates = cols.map((c) =>
+      c === 'status'
+        ? `status = CASE WHEN leads.status IN ${STICKY} AND EXCLUDED.status <> 'do_not_contact' THEN leads.status ELSE EXCLUDED.status END`
+        : `${c} = EXCLUDED.${c}`,
+    );
+    const rows = await q<{ inserted: boolean }>(
+      `INSERT INTO leads (id, agent${cols.length ? ', ' + cols.join(', ') : ''})
+       VALUES ($1, $2${placeholders.length ? ', ' + placeholders.join(', ') : ''})
+       ON CONFLICT (id) DO UPDATE SET ${[...updates, 'updated_at = now()'].join(', ')}
+       RETURNING (xmax = 0) AS inserted`,
+      vals,
+    );
+    const isNew = Boolean(rows[0]?.inserted);
+    if (isNew) created++;
+    else updated++;
+    await q('INSERT INTO activities (lead_id, actor, type, note) VALUES ($1, $2, $3, $4)', [
+      id,
+      p.agent_name || p.agent,
+      isNew ? 'found' : 'agent_update',
+      isNew
+        ? `Found via ${lead.source_platform || 'web research'}`
+        : lead.status
+          ? `Agent set status to ${lead.status}`
+          : 'Agent updated details',
+    ]);
+  }
+
+  for (const d of p.documents) {
+    const date = toDateOrNull(d.date) ?? new Date().toISOString().slice(0, 10);
+    const id = (d.id || `${p.agent}-${d.kind}-${date}`).toLowerCase().replace(/[^a-z0-9:_-]/g, '-').slice(0, 160);
+    await q(
+      `INSERT INTO documents (id, agent, kind, title, doc_date, body) VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, doc_date = EXCLUDED.doc_date, kind = EXCLUDED.kind, updated_at = now()`,
+      [id, p.agent, d.kind, d.title, date, d.body],
+    );
+  }
+
+  if (p.run) {
+    await q('INSERT INTO agent_runs (agent, status, summary, stats) VALUES ($1, $2, $3, $4)', [
+      p.agent,
+      p.run.status,
+      p.run.summary ?? null,
+      JSON.stringify({ ...(p.run.stats ?? {}), leads_created: created, leads_updated: updated, documents: p.documents.length }),
+    ]);
+  }
+
+  return NextResponse.json({ ok: true, leads_created: created, leads_updated: updated, documents: p.documents.length });
+}

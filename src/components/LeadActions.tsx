@@ -1,0 +1,146 @@
+'use client';
+
+import { Check, Copy, ExternalLink, Mail, MessageCircle, Smartphone } from 'lucide-react';
+import { useState } from 'react';
+import { trackActionAction } from '@/app/actions';
+import { outlookComposeUrl, safeHttpUrl, whatsappUrl } from '@/lib/links';
+
+type LeadLike = {
+  id: string;
+  email: string | null;
+  email_subject: string | null;
+  email_body: string | null;
+  outlook_link: string | null;
+  whatsapp: string | null;
+  phone: string | null;
+  whatsapp_message: string | null;
+  bid_text: string | null;
+  source_url: string | null;
+  source_platform: string | null;
+};
+
+function track(id: string, type: string) {
+  // Fire and forget: the link opens immediately, the click is logged for the team.
+  void trackActionAction(id, type).catch(() => undefined);
+}
+
+function waText(l: LeadLike): string {
+  return l.whatsapp_message || l.email_body || '';
+}
+
+export function CopyButton({ text, label, leadId, type, className = 'btn-ghost' }: { text: string; label: string; leadId?: string; type?: string; className?: string }) {
+  const [done, setDone] = useState<'idle' | 'ok' | 'fail'>('idle');
+  return (
+    <button
+      type="button"
+      className={className}
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setDone('ok');
+          if (leadId && type) track(leadId, type);
+        } catch {
+          setDone('fail');
+        }
+        setTimeout(() => setDone('idle'), 1800);
+      }}
+    >
+      {done === 'ok' ? <Check size={15} /> : <Copy size={15} />}
+      {done === 'ok' ? 'Copied' : done === 'fail' ? 'Select and copy manually' : label}
+    </button>
+  );
+}
+
+/** Full set of actions for the lead page. */
+export function LeadActions({ lead, myWhatsapp }: { lead: LeadLike; myWhatsapp: string | null }) {
+  const draft = safeHttpUrl(lead.outlook_link);
+  const compose = outlookComposeUrl(lead.email, lead.email_subject, lead.email_body);
+  const wa = whatsappUrl(lead.whatsapp || lead.phone, waText(lead));
+  const waSelf = waText(lead) ? whatsappUrl(myWhatsapp, waText(lead)) : null;
+  const source = safeHttpUrl(lead.source_url);
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {draft && (
+        <a className="btn-outlook" href={draft} target="_blank" rel="noopener noreferrer" onClick={() => track(lead.id, 'outlook_draft')}>
+          <Mail size={16} /> Open draft in Outlook
+        </a>
+      )}
+      {compose && (
+        <a
+          className={draft ? 'btn-ghost' : 'btn-outlook'}
+          href={compose}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => track(lead.id, 'outlook_compose')}
+        >
+          <Mail size={16} /> {draft ? 'New email in Outlook' : 'Write email in Outlook'}
+        </a>
+      )}
+      {wa && (
+        <a className="btn-whatsapp" href={wa} target="_blank" rel="noopener noreferrer" onClick={() => track(lead.id, 'whatsapp')}>
+          <MessageCircle size={16} /> Message on WhatsApp
+        </a>
+      )}
+      {waSelf && (
+        <a className="btn-ghost" href={waSelf} target="_blank" rel="noopener noreferrer" onClick={() => track(lead.id, 'whatsapp_self')}>
+          <Smartphone size={16} /> Send to my WhatsApp to review
+        </a>
+      )}
+      {source && (
+        <a className="btn-ghost" href={source} target="_blank" rel="noopener noreferrer" onClick={() => track(lead.id, 'source')}>
+          <ExternalLink size={16} /> Open {lead.source_platform ? `on ${lead.source_platform}` : 'source'}
+        </a>
+      )}
+      {lead.bid_text && <CopyButton text={lead.bid_text} label="Copy bid" leadId={lead.id} type="copy_bid" />}
+    </div>
+  );
+}
+
+/** Compact icon buttons for lists. */
+export function LeadQuickActions({ lead }: { lead: LeadLike; myWhatsapp?: string | null }) {
+  const mail = safeHttpUrl(lead.outlook_link) || outlookComposeUrl(lead.email, lead.email_subject, lead.email_body);
+  const wa = whatsappUrl(lead.whatsapp || lead.phone, waText(lead));
+  const source = safeHttpUrl(lead.source_url);
+  const icon = 'inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold transition';
+  return (
+    <div className="flex shrink-0 items-center gap-1.5">
+      {mail && (
+        <a
+          href={mail}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => track(lead.id, lead.outlook_link ? 'outlook_draft' : 'outlook_compose')}
+          className={`${icon} bg-[#0F6CBD] text-white hover:bg-[#0C5A9E]`}
+          title="Open in Outlook"
+        >
+          <Mail size={14} /> Outlook
+        </a>
+      )}
+      {wa && (
+        <a
+          href={wa}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => track(lead.id, 'whatsapp')}
+          className={`${icon} bg-[#1FA855] text-white hover:bg-[#178F47]`}
+          title="Message on WhatsApp"
+        >
+          <MessageCircle size={14} /> WhatsApp
+        </a>
+      )}
+      {!mail && !wa && source && (
+        <a
+          href={source}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => track(lead.id, 'source')}
+          className={`${icon} border border-paper-line bg-white text-ink-900 hover:border-ink-400`}
+          title="Open the post"
+        >
+          <ExternalLink size={14} /> Open post
+        </a>
+      )}
+    </div>
+  );
+}

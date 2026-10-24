@@ -1,0 +1,13 @@
+node_modules
+.next
+out
+.pglite
+.env
+.env.local
+.env*.local
+*.tsbuildinfo
+next-env.d.ts
+.vercel
+.claude
+npm-debug.log*
+VERCEL-SECRETS.local.txt
