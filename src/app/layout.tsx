@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   title: { default: 'Brainbric Pulse', template: '%s · Brainbric Pulse' },
   description: 'The command portal for Brainbric Innovations: leads, AI agents and deals in one place.',
   icons: { icon: '/brainbric-logo.png', apple: '/brainbric-logo.png' },
-  robots: { index: false, follow: false },
+  robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false, noimageindex: true } },
 };
 
 export const viewport: Viewport = {
