@@ -8,11 +8,11 @@ function ToggleButton({ paused, label, size }: { paused: boolean; label?: string
   const { pending } = useFormStatus();
   const base =
     size === 'sm'
-      ? 'inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-semibold transition disabled:opacity-50'
+      ? 'inline-flex h-7 w-[4.25rem] items-center justify-center gap-1 rounded-md text-xs font-medium transition-colors disabled:opacity-50'
       : 'btn';
   const tone = paused
-    ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-    : 'border border-paper-line bg-white text-ink-900 hover:border-flame-orange hover:text-flame-deep';
+    ? 'bg-ink-900 text-white hover:bg-ink-700'
+    : 'border border-[#D9D5D1] bg-white text-ink-700 hover:border-ink-400 hover:text-ink-950';
   return (
     <button type="submit" className={`${base} ${tone}`} disabled={pending} aria-label={label}>
       {paused ? <Play size={size === 'sm' ? 12 : 15} /> : <Pause size={size === 'sm' ? 12 : 15} />}
@@ -59,11 +59,9 @@ function AllButton({ paused }: { paused: boolean }) {
     <button
       type="submit"
       disabled={pending}
-      className={`inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-semibold transition disabled:opacity-50 ${
-        paused ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-ink-900 text-white hover:bg-ink-800'
-      }`}
+      className="inline-flex h-7 items-center gap-1 rounded-md border border-[#D9D5D1] bg-white px-2 text-xs font-medium text-ink-700 transition-colors hover:border-ink-400 hover:text-ink-950 disabled:opacity-50"
     >
-      {paused ? <Play size={12} /> : <Pause size={12} />}
+      {paused ? <Play size={11} /> : <Pause size={11} />}
       {pending ? 'Saving…' : paused ? 'Start all' : 'Pause all'}
     </button>
   );

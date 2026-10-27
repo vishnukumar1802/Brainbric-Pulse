@@ -22,7 +22,7 @@ export default async function ReportPage({ params }: { params: { id: string } })
         <ArrowLeft size={15} /> All reports
       </Link>
       <PageHeader
-        eyebrow={`${docKindLabel(doc.kind)} · ${fmtDate(doc.doc_date ?? doc.created_at)}`}
+        meta={`${docKindLabel(doc.kind)} · ${fmtDate(doc.doc_date ?? doc.created_at)}`}
         title={doc.title}
         subtitle={`${agent ? `Written by ${agent.name}` : 'Written by an agent'} · last updated ${fmtDateTime(doc.updated_at)}`}
         actions={<CopyButton text={doc.body} label="Copy text" />}

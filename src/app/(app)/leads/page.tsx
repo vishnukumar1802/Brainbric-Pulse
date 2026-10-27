@@ -27,16 +27,19 @@ export default async function LeadsPage({ searchParams }: { searchParams: SP }) 
   return (
     <>
       <PageHeader
-        eyebrow="Pipeline"
-        title="Leads"
-        subtitle="Every company and requirement post your agents found. Open one to see who they are, why they fit and how to approach them."
+        title={searchParams.status === 'drafted' ? 'Ready to send' : 'Leads'}
+        subtitle={
+          searchParams.status === 'drafted'
+            ? 'Drafts the agents wrote. Open one to read it, then send it from Outlook or WhatsApp.'
+            : 'Companies and requirement posts the agents found. Open one to see who they are, why they fit and how to approach them.'
+        }
       />
 
-      <form className="card mb-4 grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_1fr_auto_auto]" method="get">
+      <form className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))_auto_auto]" method="get">
         <label className="relative block">
           <span className="sr-only">Search</span>
-          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
-          <input name="q" defaultValue={searchParams.q ?? ''} placeholder="Search company, requirement, email, country" className="input pl-9" />
+          <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400" />
+          <input name="q" defaultValue={searchParams.q ?? ''} placeholder="Search company, requirement, email, country" className="input pl-8" />
         </label>
         <select name="kind" defaultValue={searchParams.kind ?? ''} className="input" aria-label="Type">
           <option value="">All types</option>
@@ -63,8 +66,8 @@ export default async function LeadsPage({ searchParams }: { searchParams: SP }) 
             </option>
           ))}
         </select>
-        <label className="flex items-center gap-2 whitespace-nowrap px-1 text-sm text-ink-700">
-          <input type="checkbox" name="mine" value="1" defaultChecked={Boolean(searchParams.mine)} className="accent-flame-orange" /> Assigned to me
+        <label className="flex items-center gap-2 whitespace-nowrap px-1 text-[13px] text-ink-700">
+          <input type="checkbox" name="mine" value="1" defaultChecked={Boolean(searchParams.mine)} className="accent-ink-900" /> Assigned to me
         </label>
         <div className="flex gap-2">
           <button type="submit" className="btn-dark">
@@ -78,7 +81,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: SP }) 
         </div>
       </form>
 
-      <div className="mb-2 text-xs text-ink-500">{fmtNum(leads.length)} leads</div>
+      <div className="num mb-2 text-xs text-ink-500">{fmtNum(leads.length)} {leads.length === 1 ? 'lead' : 'leads'}</div>
 
       {leads.length === 0 ? (
         <Empty title={filtered ? 'No leads match these filters' : 'No leads yet'}>
@@ -88,41 +91,41 @@ export default async function LeadsPage({ searchParams }: { searchParams: SP }) 
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[860px] text-sm">
             <thead>
-              <tr className="border-b border-paper-line text-left text-xs font-semibold text-ink-500">
-                <th className="px-4 py-3">Lead</th>
-                <th className="px-3 py-3">Source</th>
-                <th className="px-3 py-3">Why them</th>
-                <th className="px-3 py-3">Fit</th>
-                <th className="px-3 py-3">Status</th>
-                <th className="px-3 py-3">Updated</th>
-                <th className="px-4 py-3 text-right">Act</th>
+              <tr className="border-b border-paper-line text-left text-xs font-medium text-ink-500">
+                <th className="px-4 py-2.5">Lead</th>
+                <th className="px-3 py-2.5">Source</th>
+                <th className="px-3 py-2.5">Why them</th>
+                <th className="px-3 py-2.5">Fit</th>
+                <th className="px-3 py-2.5">Status</th>
+                <th className="px-3 py-2.5 text-right">Updated</th>
+                <th className="px-4 py-2.5"><span className="sr-only">Send</span></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-paper-line">
+            <tbody className="divide-y divide-paper-rule">
               {leads.map((l) => (
-                <tr key={l.id} className="align-top hover:bg-paper/60">
+                <tr key={l.id} className="align-top hover:bg-paper/50">
                   <td className="max-w-[16rem] px-4 py-3">
-                    <Link href={`/leads/${encodeURIComponent(l.id)}`} className="font-semibold text-ink-950 hover:text-flame-deep">
+                    <Link href={`/leads/${encodeURIComponent(l.id)}`} className="font-medium text-ink-950 hover:underline">
                       {l.company || l.requirement?.slice(0, 70) || 'Untitled lead'}
                     </Link>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-ink-500">
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-500">
                       <KindBadge kind={l.kind} />
-                      {l.country && <span>{l.country}</span>}
+                      {l.country && <span>· {l.country}</span>}
                       {l.assignee_name && <span>· {l.assignee_name}</span>}
                     </div>
                   </td>
                   <td className="whitespace-nowrap px-3 py-3 text-ink-700">{l.source_platform || 'Web research'}</td>
                   <td className="max-w-[22rem] px-3 py-3 text-ink-700">
                     <span className="line-clamp-2">{l.kind === 'requirement' ? l.requirement : l.pain_point}</span>
-                    {l.budget && <span className="mt-0.5 block text-xs font-semibold text-ink-900">Budget: {l.budget}</span>}
+                    {l.budget && <span className="mt-0.5 block text-xs text-ink-500">Budget <span className="font-medium text-ink-900">{l.budget}</span></span>}
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-3.5">
                     <FitScore score={l.fit_score} />
                   </td>
                   <td className="px-3 py-3">
                     <StatusBadge status={l.status} />
                   </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-xs text-ink-500">{fmtDate(l.updated_at)}</td>
+                  <td className="num whitespace-nowrap px-3 py-3 text-right text-xs text-ink-500">{fmtDate(l.updated_at)}</td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end">
                       <LeadQuickActions lead={l} myWhatsapp={myWhatsapp} />

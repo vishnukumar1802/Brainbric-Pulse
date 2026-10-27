@@ -22,27 +22,26 @@ export default async function AgentPage({ params }: { params: { slug: string } }
         <ArrowLeft size={15} /> AI team
       </Link>
       <PageHeader
-        eyebrow={agent.paused ? `Paused · ${agent.schedule || 'AI agent'}` : agent.schedule || 'AI agent'}
         title={agent.name}
         subtitle={
           agent.paused
             ? `Paused by ${agent.paused_by || 'an admin'} ${fmtAgo(agent.paused_at)}. It skips its runs until you start it again.`
-            : agent.description
+            : `${agent.schedule ? `${agent.schedule}. ` : ''}${agent.description}`
         }
         actions={user.role === 'admin' ? <AgentToggle slug={agent.slug} paused={agent.paused} name={agent.name} size="md" /> : undefined}
       />
 
-      <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <Card title="Run history" note="What the agent did each time it ran.">
           {runs.length ? (
             <ol className="flex flex-col divide-y divide-paper-line">
               {runs.map((r) => (
                 <li key={r.id} className="py-3 first:pt-0 last:pb-0">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-semibold text-ink-950">{fmtDateTime(r.created_at)}</span>
+                    <span className="num text-sm font-medium text-ink-950">{fmtDateTime(r.created_at)}</span>
                     <span
-                      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                        r.status === 'error' ? 'bg-flame-red/10 text-flame-deep' : r.status === 'warning' ? 'bg-flame-amber/15 text-[#8A4B00]' : 'bg-emerald-50 text-emerald-800'
+                      className={`rounded px-1.5 py-0.5 text-xs font-medium ${
+                        r.status === 'error' ? 'bg-[#FFEDEA] text-[#831C1E]' : r.status === 'warning' ? 'bg-[#FFFBEB] text-[#92400E]' : 'bg-[#F0EEEB] text-ink-700'
                       }`}
                     >
                       {r.status === 'ok' ? 'Done' : r.status === 'warning' ? 'Partly done' : 'Failed'}
@@ -63,14 +62,14 @@ export default async function AgentPage({ params }: { params: { slug: string } }
           )}
         </Card>
 
-        <div className="flex min-w-0 flex-col gap-6">
+        <div className="flex min-w-0 flex-col gap-4">
           <Card title="Latest leads from this agent">
             {leads.length ? (
               <ul className="flex flex-col divide-y divide-paper-line">
                 {leads.map((l) => (
                   <li key={l.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
                     <div className="min-w-0">
-                      <Link href={`/leads/${encodeURIComponent(l.id)}`} className="block truncate text-sm font-semibold text-ink-950 hover:text-flame-deep">
+                      <Link href={`/leads/${encodeURIComponent(l.id)}`} className="block truncate text-sm font-semibold text-ink-950 hover:underline">
                         {l.company || l.requirement?.slice(0, 60) || 'Untitled lead'}
                       </Link>
                       <KindBadge kind={l.kind} />
@@ -88,8 +87,8 @@ export default async function AgentPage({ params }: { params: { slug: string } }
               <ul className="flex flex-col gap-2">
                 {docs.map((d) => (
                   <li key={d.id}>
-                    <Link href={`/reports/${encodeURIComponent(d.id)}`} className="block rounded-lg px-2 py-1.5 hover:bg-paper">
-                      <div className="text-sm font-semibold text-ink-950">{d.title}</div>
+                    <Link href={`/reports/${encodeURIComponent(d.id)}`} className="-mx-2 block rounded-md px-2 py-1.5 hover:bg-paper">
+                      <div className="text-sm font-medium text-ink-950">{d.title}</div>
                       <div className="text-xs text-ink-500">
                         {docKindLabel(d.kind)} · {fmtDate(d.doc_date ?? d.created_at)}
                       </div>

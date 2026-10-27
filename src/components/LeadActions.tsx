@@ -45,7 +45,7 @@ export function CopyButton({ text, label, leadId, type, className = 'btn-ghost' 
         setTimeout(() => setDone('idle'), 1800);
       }}
     >
-      {done === 'ok' ? <Check size={15} /> : <Copy size={15} />}
+      {done === 'ok' ? <Check size={14} /> : <Copy size={14} className="text-ink-500" />}
       {done === 'ok' ? 'Copied' : done === 'fail' ? 'Select and copy manually' : label}
     </button>
   );
@@ -62,34 +62,34 @@ export function LeadActions({ lead, myWhatsapp }: { lead: LeadLike; myWhatsapp: 
   return (
     <div className="flex flex-wrap gap-2">
       {draft && (
-        <a className="btn-outlook" href={draft} target="_blank" rel="noopener noreferrer" onClick={() => track(lead.id, 'outlook_draft')}>
-          <Mail size={16} /> Open draft in Outlook
+        <a className="btn-primary" href={draft} target="_blank" rel="noopener noreferrer" onClick={() => track(lead.id, 'outlook_draft')}>
+          <Mail size={15} /> Open draft in Outlook
         </a>
       )}
       {compose && (
         <a
-          className={draft ? 'btn-ghost' : 'btn-outlook'}
+          className={draft ? 'btn-ghost' : 'btn-primary'}
           href={compose}
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => track(lead.id, 'outlook_compose')}
         >
-          <Mail size={16} /> {draft ? 'New email in Outlook' : 'Write email in Outlook'}
+          <Mail size={15} className={draft ? 'text-[#0F6CBD]' : ''} /> {draft ? 'New email in Outlook' : 'Write email in Outlook'}
         </a>
       )}
       {wa && (
-        <a className="btn-whatsapp" href={wa} target="_blank" rel="noopener noreferrer" onClick={() => track(lead.id, 'whatsapp')}>
-          <MessageCircle size={16} /> Message on WhatsApp
+        <a className={draft || compose ? 'btn-ghost' : 'btn-primary'} href={wa} target="_blank" rel="noopener noreferrer" onClick={() => track(lead.id, 'whatsapp')}>
+          <MessageCircle size={15} className={draft || compose ? 'text-[#1FA855]' : ''} /> Message on WhatsApp
         </a>
       )}
       {waSelf && (
         <a className="btn-ghost" href={waSelf} target="_blank" rel="noopener noreferrer" onClick={() => track(lead.id, 'whatsapp_self')}>
-          <Smartphone size={16} /> Send to my WhatsApp to review
+          <Smartphone size={15} className="text-ink-500" /> Send to my WhatsApp to review
         </a>
       )}
       {source && (
         <a className="btn-ghost" href={source} target="_blank" rel="noopener noreferrer" onClick={() => track(lead.id, 'source')}>
-          <ExternalLink size={16} /> Open {lead.source_platform ? `on ${lead.source_platform}` : 'source'}
+          <ExternalLink size={15} className="text-ink-500" /> Open {lead.source_platform ? `on ${lead.source_platform}` : 'source'}
         </a>
       )}
       {lead.bid_text && <CopyButton text={lead.bid_text} label="Copy bid" leadId={lead.id} type="copy_bid" />}
@@ -102,7 +102,7 @@ export function LeadQuickActions({ lead }: { lead: LeadLike; myWhatsapp?: string
   const mail = safeHttpUrl(lead.outlook_link) || outlookComposeUrl(lead.email, lead.email_subject, lead.email_body);
   const wa = whatsappUrl(lead.whatsapp || lead.phone, waText(lead));
   const source = safeHttpUrl(lead.source_url);
-  const icon = 'inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold transition';
+  const icon = 'inline-flex h-7 items-center gap-1.5 rounded-md border border-[#D9D5D1] bg-white px-2 text-xs font-medium text-ink-900 transition-colors hover:border-ink-400 hover:bg-paper';
   return (
     <div className="flex shrink-0 items-center gap-1.5">
       {mail && (
@@ -111,10 +111,10 @@ export function LeadQuickActions({ lead }: { lead: LeadLike; myWhatsapp?: string
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => track(lead.id, lead.outlook_link ? 'outlook_draft' : 'outlook_compose')}
-          className={`${icon} bg-[#0F6CBD] text-white hover:bg-[#0C5A9E]`}
+          className={icon}
           title="Open in Outlook"
         >
-          <Mail size={14} /> Outlook
+          <Mail size={13} className="text-[#0F6CBD]" /> Outlook
         </a>
       )}
       {wa && (
@@ -123,10 +123,10 @@ export function LeadQuickActions({ lead }: { lead: LeadLike; myWhatsapp?: string
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => track(lead.id, 'whatsapp')}
-          className={`${icon} bg-[#1FA855] text-white hover:bg-[#178F47]`}
+          className={icon}
           title="Message on WhatsApp"
         >
-          <MessageCircle size={14} /> WhatsApp
+          <MessageCircle size={13} className="text-[#1FA855]" /> WhatsApp
         </a>
       )}
       {!mail && !wa && source && (
@@ -135,10 +135,10 @@ export function LeadQuickActions({ lead }: { lead: LeadLike; myWhatsapp?: string
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => track(lead.id, 'source')}
-          className={`${icon} border border-paper-line bg-white text-ink-900 hover:border-ink-400`}
+          className={icon}
           title="Open the post"
         >
-          <ExternalLink size={14} /> Open post
+          <ExternalLink size={13} className="text-ink-500" /> Open post
         </a>
       )}
     </div>

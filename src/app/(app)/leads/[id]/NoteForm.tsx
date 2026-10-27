@@ -26,7 +26,7 @@ export function NoteForm({ id }: { id: string }) {
         Note
       </label>
       <textarea id="note" name="note" rows={3} placeholder="Add a note: what they said, next step, call outcome…" className="input resize-y" />
-      {state?.error && <p className="text-xs text-flame-deep">{state.error}</p>}
+      {state?.error && <p className="text-xs text-[#C4242A]">{state.error}</p>}
       <Submit />
     </form>
   );

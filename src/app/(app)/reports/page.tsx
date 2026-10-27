@@ -13,17 +13,17 @@ export default async function ReportsPage({ searchParams }: { searchParams: { ki
 
   return (
     <>
-      <PageHeader eyebrow="Library" title="Reports" subtitle="Briefs, inbox summaries, meeting preps, proposals, social plans and competitor reports from your agents." />
+      <PageHeader title="Reports" subtitle="Briefs, inbox summaries, meeting preps, proposals, social plans and competitor reports from your agents." />
 
       <div className="mb-5 flex flex-wrap gap-2">
-        <Link href="/reports" className={`rounded-full px-3 py-1.5 text-sm font-semibold ${!kind ? 'bg-ink-900 text-white' : 'bg-white text-ink-700 ring-1 ring-paper-line hover:ring-ink-400'}`}>
+        <Link href="/reports" className={`rounded-md px-2.5 py-1 text-[13px] ${!kind ? 'bg-paper-active font-medium text-ink-950' : 'text-ink-700 hover:bg-paper-active/60 hover:text-ink-950'}`}>
           All
         </Link>
         {kinds.map((k) => (
           <Link
             key={k.kind}
             href={`/reports?kind=${encodeURIComponent(k.kind)}`}
-            className={`rounded-full px-3 py-1.5 text-sm font-semibold ${kind === k.kind ? 'bg-ink-900 text-white' : 'bg-white text-ink-700 ring-1 ring-paper-line hover:ring-ink-400'}`}
+            className={`rounded-md px-2.5 py-1 text-[13px] ${kind === k.kind ? 'bg-paper-active font-medium text-ink-950' : 'text-ink-700 hover:bg-paper-active/60 hover:text-ink-950'}`}
           >
             {docKindLabel(k.kind)} <span className="ml-1 tabular-nums opacity-60">{k.n}</span>
           </Link>
@@ -33,14 +33,21 @@ export default async function ReportsPage({ searchParams }: { searchParams: { ki
       {docs.length === 0 ? (
         <Empty title="No reports yet">Reports appear here as the agents write them.</Empty>
       ) : (
-        <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <ul className="card divide-y divide-paper-rule">
           {docs.map((d) => (
             <li key={d.id}>
-              <Link href={`/reports/${encodeURIComponent(d.id)}`} className="card block h-full p-4 transition hover:border-ink-400">
-                <div className="eyebrow">{docKindLabel(d.kind)}</div>
-                <div className="mt-1 font-display text-[15px] font-semibold text-ink-950">{d.title}</div>
-                <p className="mt-2 line-clamp-3 text-sm text-ink-500">{d.body.replace(/[#*_>`|-]/g, ' ').replace(/\s+/g, ' ').slice(0, 220)}</p>
-                <div className="mt-3 text-xs text-ink-500">{fmtDate(d.doc_date ?? d.created_at)}</div>
+              <Link
+                href={`/reports/${encodeURIComponent(d.id)}`}
+                className="grid gap-x-6 gap-y-1 px-5 py-3.5 transition-colors hover:bg-paper/50 sm:grid-cols-[7rem_minmax(0,1fr)]"
+              >
+                <div className="num text-xs text-ink-500 sm:pt-0.5">
+                  {fmtDate(d.doc_date ?? d.created_at)}
+                  <span className="block">{docKindLabel(d.kind)}</span>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-ink-950">{d.title}</div>
+                  <p className="mt-0.5 line-clamp-2 text-sm text-ink-500">{d.body.replace(/[#*_>`|-]/g, ' ').replace(/\s+/g, ' ').slice(0, 240)}</p>
+                </div>
               </Link>
             </li>
           ))}

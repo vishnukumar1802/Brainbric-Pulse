@@ -18,10 +18,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const sidebar = <SidebarContent user={user} agents={agents} counts={counts ?? { drafted: 0, hot: 0 }} />;
 
   return (
-    <div className="min-h-screen lg:pl-64">
-      <aside className="fixed inset-y-0 left-0 hidden w-64 overflow-y-auto bg-ink-950 lg:block">{sidebar}</aside>
+    <div className="min-h-screen lg:pl-60">
+      <aside className="fixed inset-y-0 left-0 hidden w-60 overflow-y-auto border-r border-paper-line bg-paper lg:block">{sidebar}</aside>
       <MobileNav>{sidebar}</MobileNav>
-      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</main>
+      <main className="mx-auto w-full max-w-[1240px] px-4 py-6 sm:px-6 lg:px-10 lg:py-8">{children}</main>
     </div>
   );
 }

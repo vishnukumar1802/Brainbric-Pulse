@@ -16,7 +16,7 @@ function Submit({ label }: { label: string }) {
 function Message({ state }: { state: FormState }) {
   if (!state) return null;
   return (
-    <p role="status" className={`rounded-lg px-3 py-2 text-sm ${state.error ? 'bg-flame-red/10 text-flame-deep' : 'bg-emerald-50 text-emerald-800'}`}>
+    <p role="status" className={`rounded-md px-3 py-2 text-sm ${state.error ? 'bg-[#FFEDEA] text-[#831C1E]' : 'bg-[#DCFAE5] text-[#0B3D1C]'}`}>
       {state.error || state.ok}
     </p>
   );

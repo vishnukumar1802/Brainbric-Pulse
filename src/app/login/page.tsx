@@ -11,31 +11,16 @@ export default async function LoginPage({ searchParams }: { searchParams: { next
   if (await currentUser()) redirect('/');
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1.1fr_1fr]">
-      <section className="relative hidden overflow-hidden bg-ink-950 p-12 lg:flex lg:flex-col">
-        <div className="absolute -bottom-40 -right-32 h-[520px] w-[520px] rounded-full bg-flame opacity-20 blur-3xl" aria-hidden />
-        <Brand size={40} />
-        <div className="relative mt-auto max-w-md">
-          <p className="eyebrow !text-flame-amber">Brainbric Innovations</p>
-          <h1 className="mt-3 font-display text-4xl font-semibold leading-tight text-white">
-            Your AI team works around the clock. This is where you steer it.
-          </h1>
-          <p className="mt-4 text-[15px] leading-relaxed text-ink-400">
-            Every lead, requirement post, draft and report your agents produce, in one place, with one click to Outlook or WhatsApp.
-          </p>
-        </div>
-      </section>
-
-      <section className="flex items-center justify-center px-5 py-12">
-        <div className="w-full max-w-sm">
-          <div className="mb-8 lg:hidden">
-            <Brand dark={false} size={36} />
-          </div>
-          <h2 className="font-display text-2xl font-semibold text-ink-950">Sign in</h2>
+    <div className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
+      <div className="w-full max-w-[360px]">
+        <Brand size={32} />
+        <div className="card mt-8 p-6">
+          <h1 className="text-xl font-semibold text-ink-950">Sign in</h1>
           <p className="mt-1 text-sm text-ink-500">Use the email and password your admin gave you.</p>
           <LoginForm next={searchParams.next ?? '/'} />
         </div>
-      </section>
+        <p className="mt-4 text-xs text-ink-500">Leads, drafts and reports from the Brainbric AI team. Private to the team.</p>
+      </div>
     </div>
   );
 }

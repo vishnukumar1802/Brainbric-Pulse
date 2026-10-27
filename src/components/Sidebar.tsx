@@ -1,79 +1,84 @@
-import { Bot, FileText, Gauge, LogOut, Megaphone, Settings, Target, Users, Zap } from 'lucide-react';
+import Link from 'next/link';
+import { FileText, LayoutGrid, LogOut, Send, Settings, Target, Users } from 'lucide-react';
 import { logoutAction } from '@/app/actions';
 import type { Agent } from '@/lib/agents';
 import type { User } from '@/lib/auth';
 import { Brand } from './Brand';
 import { NavLink } from './NavLink';
 
+function agentDot(a: Agent) {
+  if (a.paused) return 'bg-transparent ring-1 ring-inset ring-ink-400';
+  if (a.last_status === 'error') return 'bg-[#C4242A]';
+  if (a.last_status === 'warning') return 'bg-flame-amber';
+  return a.last_run_at ? 'bg-[#247B50]' : 'bg-[#D9D5D1]';
+}
+
 export function SidebarContent({ user, agents, counts }: { user: User; agents: Agent[]; counts: { drafted: number; hot: number } }) {
+  const initials = user.name
+    .split(/\s+/)
+    .map((p) => p[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
   return (
-    <div className="flex h-full flex-col gap-6 px-3 py-5">
-      <div className="px-2">
+    <div className="flex h-full flex-col px-3 py-4">
+      <div className="px-2 pb-5">
         <Brand />
       </div>
 
       <nav className="flex flex-col gap-0.5" aria-label="Main">
         <NavLink href="/" exact>
-          <Gauge size={17} /> Overview
+          <LayoutGrid size={16} strokeWidth={1.75} /> Overview
         </NavLink>
-        <NavLink href="/leads" badge={counts.drafted}>
-          <Target size={17} /> Leads
+        <NavLink href="/leads?status=drafted" exact count={counts.drafted}>
+          <Send size={16} strokeWidth={1.75} /> Ready to send
         </NavLink>
-        <NavLink href="/hot">
-          <Zap size={17} /> Hot leads {counts.hot ? <span className="ml-auto text-[11px] text-flame-amber">{counts.hot}</span> : null}
+        <NavLink href="/leads" notWhen="status=drafted">
+          <Target size={16} strokeWidth={1.75} /> All leads
         </NavLink>
         <NavLink href="/reports">
-          <FileText size={17} /> Reports
+          <FileText size={16} strokeWidth={1.75} /> Reports
         </NavLink>
       </nav>
 
-      <div>
-        <div className="mb-1.5 flex items-center justify-between px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">
-          <span>AI team</span>
-          <Bot size={13} />
+      <div className="mt-7">
+        <div className="mb-1.5 flex items-baseline justify-between px-2.5">
+          <Link href="/agents" className="text-xs text-ink-500 hover:text-ink-950">
+            AI team
+          </Link>
+          <span className="num text-xs text-ink-400">
+            {agents.filter((a) => !a.paused).length}/{agents.length} on
+          </span>
         </div>
         <nav className="flex flex-col gap-0.5" aria-label="AI agents">
-          <NavLink href="/agents" exact sub>
-            <Megaphone size={14} /> All agents
-          </NavLink>
           {agents.map((a) => (
             <NavLink key={a.slug} href={`/agents/${a.slug}`} sub>
-              <span
-                className={`h-1.5 w-1.5 shrink-0 rounded-full ${a.paused ? 'bg-flame-amber' : a.last_status === 'error' ? 'bg-flame-red' : a.last_run_at ? 'bg-emerald-400' : 'bg-ink-500'}`}
-                aria-hidden
-              />
-              <span className="truncate">{a.name}</span>
-              {a.paused && <span className="ml-auto text-[10px] font-semibold uppercase text-flame-amber">Paused</span>}
+              <span className={`h-[7px] w-[7px] shrink-0 rounded-full ${agentDot(a)}`} aria-hidden />
+              <span className={`truncate ${a.paused ? 'text-ink-400' : ''}`}>{a.name}</span>
+              {a.paused && <span className="ml-auto text-xs text-ink-400">Paused</span>}
             </NavLink>
           ))}
         </nav>
       </div>
 
-      <div className="mt-auto flex flex-col gap-0.5">
+      <div className="mt-auto flex flex-col gap-0.5 pt-6">
         {user.role === 'admin' && (
           <NavLink href="/admin/users">
-            <Users size={17} /> Team & access
+            <Users size={16} strokeWidth={1.75} /> Team and access
           </NavLink>
         )}
         <NavLink href="/settings">
-          <Settings size={17} /> Settings
+          <Settings size={16} strokeWidth={1.75} /> Settings
         </NavLink>
-        <div className="mt-3 flex items-center gap-3 rounded-lg bg-white/5 px-3 py-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-flame-x text-xs font-bold text-white">
-            {user.name
-              .split(/\s+/)
-              .map((p) => p[0])
-              .join('')
-              .slice(0, 2)
-              .toUpperCase()}
-          </div>
+        <div className="mt-3 flex items-center gap-2.5 border-t border-paper-line px-2 pt-3">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-flame-tint text-[11px] font-semibold text-flame-ink">{initials}</div>
           <div className="min-w-0 flex-1 leading-tight">
-            <div className="truncate text-sm font-semibold text-white">{user.name}</div>
-            <div className="truncate text-[11px] text-ink-400">{user.role === 'admin' ? 'Admin' : 'Team member'}</div>
+            <div className="truncate text-[13px] font-medium text-ink-950">{user.name}</div>
+            <div className="truncate text-xs text-ink-500">{user.role === 'admin' ? 'Admin' : 'Team member'}</div>
           </div>
           <form action={logoutAction}>
-            <button type="submit" className="rounded-md p-1.5 text-ink-400 hover:bg-white/10 hover:text-white" title="Sign out" aria-label="Sign out">
-              <LogOut size={16} />
+            <button type="submit" className="rounded-md p-1.5 text-ink-500 hover:bg-paper-active hover:text-ink-950" title="Sign out" aria-label="Sign out">
+              <LogOut size={15} strokeWidth={1.75} />
             </button>
           </form>
         </div>

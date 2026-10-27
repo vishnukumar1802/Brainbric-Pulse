@@ -6,7 +6,7 @@ import { loginAction } from '@/app/actions';
 function Submit() {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className="btn-primary w-full py-2.5" disabled={pending}>
+    <button type="submit" className="btn-primary h-9 w-full" disabled={pending}>
       {pending ? 'Signing in…' : 'Sign in'}
     </button>
   );
@@ -30,7 +30,7 @@ export function LoginForm({ next }: { next: string }) {
         <input id="password" name="password" type="password" autoComplete="current-password" required className="input" />
       </div>
       {state?.error && (
-        <p role="alert" className="rounded-lg bg-flame-red/10 px-3 py-2 text-sm text-flame-deep">
+        <p role="alert" className="rounded-md bg-[#FFEDEA] px-3 py-2 text-sm text-[#831C1E]">
           {state.error}
         </p>
       )}

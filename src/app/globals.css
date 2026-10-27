@@ -8,12 +8,13 @@
 
 html,
 body {
-  background: #f6f5f7;
-  color: #1b181c;
+  background: #f7f6f4;
+  color: #1d1a1e;
 }
 
 body {
   font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 14px;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -23,49 +24,62 @@ h3 {
   text-wrap: balance;
 }
 
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
 @layer components {
   .card {
-    @apply rounded-xl border border-paper-line bg-paper-card shadow-card;
+    @apply rounded-card border border-paper-line bg-paper-card;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame-orange disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 text-[13px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink-900 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply btn bg-flame-x text-white shadow-sm hover:brightness-105;
+    @apply btn bg-ink-900 text-white hover:bg-ink-700;
   }
   .btn-dark {
-    @apply btn bg-ink-900 text-white hover:bg-ink-800;
+    @apply btn bg-ink-900 text-white hover:bg-ink-700;
   }
   .btn-ghost {
-    @apply btn border border-paper-line bg-white text-ink-900 hover:border-ink-400;
+    @apply btn border border-[#D9D5D1] bg-white text-ink-900 hover:border-ink-400 hover:bg-paper;
   }
   .btn-whatsapp {
-    @apply btn bg-[#1FA855] text-white hover:bg-[#178F47];
+    @apply btn-ghost;
   }
   .btn-outlook {
-    @apply btn bg-[#0F6CBD] text-white hover:bg-[#0C5A9E];
+    @apply btn-ghost;
   }
   .input {
-    @apply w-full rounded-lg border border-paper-line bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400 focus:border-flame-orange focus:outline-none focus:ring-2 focus:ring-flame-orange/25;
+    @apply h-8 w-full rounded-md border border-[#D9D5D1] bg-white px-2.5 text-[13px] text-ink-900 placeholder:text-ink-400 focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-900/10;
+  }
+  textarea.input {
+    @apply h-auto py-2;
   }
   .label {
-    @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-500;
+    @apply mb-1 block text-xs font-medium text-ink-500;
   }
   .eyebrow {
-    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500;
+    @apply text-xs font-medium text-ink-500;
+  }
+  .link {
+    @apply font-medium text-ink-900 underline decoration-ink-400/50 underline-offset-2 hover:decoration-ink-900;
   }
   .prose-pulse {
-    @apply max-w-[75ch] text-[15px] leading-relaxed text-ink-800;
+    @apply max-w-[75ch] text-[14px] leading-relaxed text-ink-800;
   }
   .prose-pulse h1 {
-    @apply mb-3 mt-6 font-display text-xl font-semibold text-ink-950;
+    @apply mb-2 mt-5 text-lg font-semibold text-ink-950;
   }
   .prose-pulse h2 {
-    @apply mb-2 mt-6 font-display text-lg font-semibold text-ink-950;
+    @apply mb-2 mt-5 text-base font-semibold text-ink-950;
   }
   .prose-pulse h3,
   .prose-pulse h4 {
-    @apply mb-2 mt-5 font-semibold text-ink-950;
+    @apply mb-1.5 mt-4 font-semibold text-ink-950;
+  }
+  .prose-pulse > :first-child {
+    @apply mt-0;
   }
   .prose-pulse p {
     @apply mb-3;
@@ -80,23 +94,25 @@ h3 {
     @apply mb-1;
   }
   .prose-pulse a {
-    @apply break-words font-medium text-flame-deep underline decoration-flame-orange/40 underline-offset-2;
+    @apply break-words font-medium text-ink-900 underline decoration-ink-400/50 underline-offset-2;
   }
   .prose-pulse hr {
-    @apply my-6 border-paper-line;
+    @apply my-5 border-paper-line;
   }
   .prose-pulse table {
-    @apply mb-4 block w-full overflow-x-auto text-sm;
+    @apply mb-4 block w-full overflow-x-auto text-[13px];
   }
-  .prose-pulse th,
+  .prose-pulse th {
+    @apply border-b border-paper-line px-2 py-1.5 text-left align-top text-xs font-medium text-ink-500;
+  }
   .prose-pulse td {
-    @apply border border-paper-line px-2 py-1 text-left align-top;
+    @apply border-b border-paper-rule px-2 py-1.5 text-left align-top;
   }
   .prose-pulse code {
-    @apply rounded bg-ink-800/5 px-1 py-0.5 text-[13px];
+    @apply rounded bg-paper px-1 py-0.5 font-mono text-[12px];
   }
   .prose-pulse blockquote {
-    @apply border-l-2 border-flame-orange pl-3 text-ink-700;
+    @apply border-l-2 border-paper-line pl-3 text-ink-700;
   }
 }
 

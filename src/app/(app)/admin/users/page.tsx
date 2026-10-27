@@ -13,7 +13,7 @@ export default async function UsersPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Admin" title="Team & access" subtitle="Give people their own login. Admins can manage users and settings; team members can work leads." />
+      <PageHeader title="Team and access" subtitle="Give people their own login. Admins can manage users and settings; team members can work leads." />
 
       <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
         <Card title="People" note={`${users.filter((u) => u.active).length} active`}>
@@ -44,7 +44,7 @@ export default async function UsersPage() {
                           <option value="admin">Admin</option>
                         </select>
                         {u.id !== me.id && (
-                          <button type="submit" className="text-xs font-semibold text-flame-deep hover:underline">
+                          <button type="submit" className="text-xs font-medium text-ink-900 underline decoration-ink-400/50 underline-offset-2 hover:decoration-ink-900">
                             Save
                           </button>
                         )}
@@ -58,7 +58,7 @@ export default async function UsersPage() {
                         <form action={updateUserAction}>
                           <input type="hidden" name="id" value={u.id} />
                           <input type="hidden" name="active" value={u.active ? 'false' : 'true'} />
-                          <button type="submit" className={`text-xs font-semibold hover:underline ${u.active ? 'text-flame-deep' : 'text-emerald-700'}`}>
+                          <button type="submit" className={`text-xs font-medium underline underline-offset-2 ${u.active ? 'text-[#C4242A] decoration-[#C4242A]/40' : 'text-ink-900 decoration-ink-400/50'}`}>
                             {u.active ? 'Turn off access' : 'Turn on access'}
                           </button>
                         </form>

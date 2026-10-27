@@ -24,12 +24,12 @@ export function statusInfo(value: string | null | undefined) {
 }
 
 export const TONE_CLASSES: Record<Tone, string> = {
-  neutral: 'bg-ink-800/5 text-ink-700 ring-ink-800/10',
-  action: 'bg-flame-amber/15 text-[#8A4B00] ring-flame-orange/30',
-  progress: 'bg-sky-50 text-sky-800 ring-sky-200',
-  hot: 'bg-flame-red/10 text-flame-deep ring-flame-red/30',
-  won: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
-  lost: 'bg-ink-800/5 text-ink-500 ring-ink-800/10',
+  neutral: 'bg-[#F0EEEB] text-ink-700',
+  action: 'bg-flame-tint text-flame-ink',
+  progress: 'bg-[#EEF1F5] text-[#2F4058]',
+  hot: 'bg-[#FFEDEA] text-[#831C1E]',
+  won: 'bg-[#DCFAE5] text-[#0B3D1C]',
+  lost: 'bg-transparent text-ink-500',
 };
 
 export const KIND_LABELS: Record<string, string> = {

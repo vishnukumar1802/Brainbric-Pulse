@@ -126,7 +126,7 @@ export async function pipelineStats() {
               COUNT(*) FILTER (WHERE kind = 'requirement')::int AS requirement,
               COUNT(*) FILTER (WHERE status = 'drafted')::int AS drafted,
               COUNT(*) FILTER (WHERE status IN ('replied','interested','call_booked','proposal'))::int AS hot,
-              COUNT(*) FILTER (WHERE status NOT IN ('new','drafted'))::int AS contacted,
+              COUNT(*) FILTER (WHERE status IN ('sent','followup1','followup2','replied','interested','call_booked','proposal','won','no_response'))::int AS contacted,
               COUNT(*) FILTER (WHERE status = 'won')::int AS won,
               COUNT(*) FILTER (WHERE created_at > now() - interval '7 days')::int AS week
        FROM leads`,
@@ -136,7 +136,7 @@ export async function pipelineStats() {
       `SELECT COALESCE(NULLIF(source_platform, ''), 'Other') AS source, COUNT(*)::int AS n FROM leads GROUP BY 1 ORDER BY n DESC LIMIT 8`,
     ),
     q<{ day: string; n: number }>(
-      `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day, COUNT(*)::int AS n
+      `SELECT to_char(created_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS day, COUNT(*)::int AS n
        FROM leads WHERE created_at > now() - interval '14 days' GROUP BY 1 ORDER BY 1`,
     ),
   ]);
