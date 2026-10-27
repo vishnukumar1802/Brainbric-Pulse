@@ -64,6 +64,8 @@ const Payload = z.object({
     .optional(),
   leads: z.array(LeadIn).max(200).default([]),
   documents: z.array(DocIn).max(50).default([]),
+  // Only change leads that already exist (matched by id, email or source_url): status, plus a note added on top.
+  update_only: z.boolean().default(false),
 });
 
 const LEAD_COLUMNS = [
@@ -123,8 +125,33 @@ export async function POST(req: Request) {
 
   let created = 0;
   let updated = 0;
+  const notFound: string[] = [];
   for (const lead of p.leads) {
     const id = leadId(lead);
+    if (p.update_only) {
+      const rows = await q<{ id: string }>(
+        `UPDATE leads SET
+           status = COALESCE($2::text, status),
+           notes = CASE WHEN $3::text IS NULL THEN notes ELSE concat_ws(E'\\n', $3::text, notes) END,
+           updated_at = now()
+         WHERE id = $1
+            OR ($4::text IS NOT NULL AND lower(email) = lower($4::text))
+            OR ($5::text IS NOT NULL AND source_url = $5::text)
+         RETURNING id`,
+        [id, lead.status || null, lead.notes || null, lead.email || null, lead.source_url || null],
+      );
+      if (!rows.length) notFound.push(lead.company || lead.email || lead.source_url || id);
+      for (const r of rows) {
+        updated++;
+        await q('INSERT INTO activities (lead_id, actor, type, note) VALUES ($1, $2, $3, $4)', [
+          r.id,
+          p.agent_name || p.agent,
+          'agent_update',
+          lead.notes || (lead.status ? `Status set to ${lead.status}` : 'Updated'),
+        ]);
+      }
+      continue;
+    }
     const cols: string[] = [];
     const vals: unknown[] = [id, p.agent];
     for (const c of LEAD_COLUMNS) {
@@ -180,5 +207,11 @@ export async function POST(req: Request) {
     ]);
   }
 
-  return NextResponse.json({ ok: true, leads_created: created, leads_updated: updated, documents: p.documents.length });
+  return NextResponse.json({
+    ok: true,
+    leads_created: created,
+    leads_updated: updated,
+    documents: p.documents.length,
+    ...(p.update_only ? { not_found: notFound } : {}),
+  });
 }
