@@ -98,11 +98,13 @@ export function LeadActions({ lead, myWhatsapp }: { lead: LeadLike; myWhatsapp: 
 }
 
 /** Compact icon buttons for lists. */
-export function LeadQuickActions({ lead }: { lead: LeadLike; myWhatsapp?: string | null }) {
+export function LeadQuickActions({ lead, compact = false }: { lead: LeadLike; myWhatsapp?: string | null; compact?: boolean }) {
   const mail = safeHttpUrl(lead.outlook_link) || outlookComposeUrl(lead.email, lead.email_subject, lead.email_body);
   const wa = whatsappUrl(lead.whatsapp || lead.phone, waText(lead));
   const source = safeHttpUrl(lead.source_url);
-  const icon = 'inline-flex h-7 items-center gap-1.5 rounded-md border border-[#D9D5D1] bg-white px-2 text-xs font-medium text-ink-900 transition-colors hover:border-ink-400 hover:bg-paper';
+  const icon = `inline-flex h-7 items-center gap-1.5 rounded-md border border-[#D9D5D1] bg-white text-xs font-medium text-ink-900 transition-colors hover:border-ink-400 hover:bg-paper ${compact ? 'px-1.5 xl:px-2' : 'px-2'}`;
+  // In compact mode the label hides below xl; the icon, tooltip and screen-reader text stay.
+  const label = compact ? 'sr-only xl:not-sr-only' : '';
   return (
     <div className="flex shrink-0 items-center gap-1.5">
       {mail && (
@@ -114,7 +116,7 @@ export function LeadQuickActions({ lead }: { lead: LeadLike; myWhatsapp?: string
           className={icon}
           title="Open in Outlook"
         >
-          <Mail size={13} className="text-[#0F6CBD]" /> Outlook
+          <Mail size={13} className="text-[#0F6CBD]" /> <span className={label}>Outlook</span>
         </a>
       )}
       {wa && (
@@ -126,7 +128,7 @@ export function LeadQuickActions({ lead }: { lead: LeadLike; myWhatsapp?: string
           className={icon}
           title="Message on WhatsApp"
         >
-          <MessageCircle size={13} className="text-[#1FA855]" /> WhatsApp
+          <MessageCircle size={13} className="text-[#1FA855]" /> <span className={label}>WhatsApp</span>
         </a>
       )}
       {!mail && !wa && source && (
@@ -138,7 +140,7 @@ export function LeadQuickActions({ lead }: { lead: LeadLike; myWhatsapp?: string
           className={icon}
           title="Open the post"
         >
-          <ExternalLink size={13} className="text-ink-500" /> Open post
+          <ExternalLink size={13} className="text-ink-500" /> <span className={label}>Open post</span>
         </a>
       )}
     </div>

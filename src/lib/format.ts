@@ -34,3 +34,12 @@ export function fmtAgo(v: unknown): string {
 export function fmtNum(n: number | null | undefined): string {
   return new Intl.NumberFormat('en-IN').format(n ?? 0);
 }
+
+/** "27 Oct", with the year only when it is not this year. */
+export function fmtShortDate(v: unknown): string {
+  const d = toDate(v);
+  if (!d) return '—';
+  const year = (x: Date) => x.toLocaleDateString('en-IN', { year: 'numeric', timeZone: TZ });
+  const sameYear = year(d) === year(new Date());
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }), timeZone: TZ });
+}

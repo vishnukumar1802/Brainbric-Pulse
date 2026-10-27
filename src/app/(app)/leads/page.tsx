@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { LeadQuickActions } from "@/components/LeadActions";
-import { CompanyMark } from "@/components/rich";
+import { CompanyMark, leadName } from "@/components/rich";
 import {
   Empty,
   FitScore,
@@ -11,7 +11,7 @@ import {
 } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { getSetting } from "@/lib/db";
-import { fmtDate, fmtNum } from "@/lib/format";
+import { fmtNum, fmtShortDate } from "@/lib/format";
 import { listLeads, sourcesList, type LeadFilters } from "@/lib/leads";
 import { STATUSES, KIND_LABELS } from "@/lib/status";
 
@@ -57,7 +57,7 @@ export default async function LeadsPage({
       />
 
       <form
-        className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))_auto_auto]"
+        className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))_auto_auto]"
         method="get"
       >
         <label className="relative block">
@@ -148,83 +148,98 @@ export default async function LeadsPage({
             : "Your agents add leads here as they find them."}
         </Empty>
       ) : (
-        <div className="card overflow-x-auto">
-          <table className="w-full min-w-[860px] text-sm">
-            <thead>
-              <tr className="border-b border-paper-line text-left text-xs font-medium text-ink-500">
-                <th className="px-4 py-2.5">Lead</th>
-                <th className="px-3 py-2.5">Source</th>
-                <th className="px-3 py-2.5">Why them</th>
-                <th className="px-3 py-2.5">Fit</th>
-                <th className="px-3 py-2.5">Status</th>
-                <th className="px-3 py-2.5 text-right">Updated</th>
-                <th className="px-4 py-2.5">
-                  <span className="sr-only">Send</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-paper-rule">
-              {leads.map((l) => (
-                <tr key={l.id} className="align-top hover:bg-paper/50">
-                  <td className="max-w-[18rem] px-4 py-3">
-                    <div className="flex items-start gap-3">
-                      <CompanyMark
-                        name={l.company}
-                        post={!l.company}
-                        size={30}
-                      />
-                      <div className="min-w-0">
-                        <Link
-                          href={`/leads/${encodeURIComponent(l.id)}`}
-                          className="font-medium text-ink-950 hover:underline"
-                        >
-                          {l.company ||
-                            l.requirement?.slice(0, 70) ||
-                            "Untitled lead"}
-                        </Link>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-500">
-                          <KindBadge kind={l.kind} />
-                          {l.country && <span>· {l.country}</span>}
-                          {l.assignee_name && <span>· {l.assignee_name}</span>}
-                        </div>
-                      </div>
+        <>
+          {/* Phone: one stacked row per lead. */}
+          <ul className="card divide-y divide-paper-rule md:hidden">
+            {leads.map((l) => (
+              <li key={l.id} className="px-4 py-3">
+                <div className="flex items-start gap-3">
+                  <CompanyMark name={l.company} post={!l.company} size={32} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <Link href={`/leads/${encodeURIComponent(l.id)}`} className="line-clamp-2 font-medium text-ink-950 hover:underline">
+                        {leadName(l)}
+                      </Link>
+                      <StatusBadge status={l.status} />
                     </div>
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-ink-700">
-                    {l.source_platform || "Web research"}
-                  </td>
-                  <td className="max-w-[22rem] px-3 py-3 text-ink-700">
-                    <span className="line-clamp-2">
-                      {l.kind === "requirement" ? l.requirement : l.pain_point}
-                    </span>
-                    {l.budget && (
-                      <span className="mt-0.5 block text-xs text-ink-500">
-                        Budget{" "}
-                        <span className="font-medium text-ink-900">
-                          {l.budget}
-                        </span>
-                      </span>
+                    <div className="mt-0.5 truncate text-xs text-ink-500">
+                      {[l.source_platform || 'Web research', l.country, fmtShortDate(l.updated_at)].filter(Boolean).join(' · ')}
+                    </div>
+                    {(l.kind === 'requirement' ? l.requirement : l.pain_point) && (
+                      <p className="mt-1.5 line-clamp-2 text-[13px] text-ink-700">{l.kind === 'requirement' ? l.requirement : l.pain_point}</p>
                     )}
-                  </td>
-                  <td className="px-3 py-3.5">
-                    <FitScore score={l.fit_score} />
-                  </td>
-                  <td className="px-3 py-3">
-                    <StatusBadge status={l.status} />
-                  </td>
-                  <td className="num whitespace-nowrap px-3 py-3 text-right text-xs text-ink-500">
-                    {fmtDate(l.updated_at)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end">
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <FitScore score={l.fit_score} />
                       <LeadQuickActions lead={l} myWhatsapp={myWhatsapp} />
                     </div>
-                  </td>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {/* Tablet and up: a table that fits its column, so the send buttons are never clipped. */}
+          <div className="card hidden md:block">
+            <table className="w-full table-fixed text-sm">
+              <colgroup>
+                <col className="w-[34%] xl:w-[30%]" />
+                <col />
+                <col className="w-[64px]" />
+                <col className="w-[112px]" />
+                <col className="w-[92px] xl:w-[196px]" />
+              </colgroup>
+              <thead>
+                <tr className="border-b border-paper-line text-left text-xs font-medium text-ink-500">
+                  <th className="px-4 py-2.5">Lead</th>
+                  <th className="px-3 py-2.5">Why them</th>
+                  <th className="px-3 py-2.5">Fit</th>
+                  <th className="px-3 py-2.5">Status</th>
+                  <th className="px-4 py-2.5">
+                    <span className="sr-only">Send</span>
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-paper-rule">
+                {leads.map((l) => (
+                  <tr key={l.id} className="align-top hover:bg-paper/50">
+                    <td className="px-4 py-3">
+                      <div className="flex items-start gap-3">
+                        <CompanyMark name={l.company} post={!l.company} size={30} />
+                        <div className="min-w-0">
+                          <Link href={`/leads/${encodeURIComponent(l.id)}`} className="line-clamp-2 font-medium text-ink-950 hover:underline">
+                            {leadName(l)}
+                          </Link>
+                          <div className="mt-0.5 truncate text-xs text-ink-500" title={l.assignee_name ? `Assigned to ${l.assignee_name}` : undefined}>
+                            {[l.source_platform || 'Web research', l.country, fmtShortDate(l.updated_at)].filter(Boolean).join(' · ')}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-ink-700">
+                      <span className="line-clamp-2">{(l.kind === 'requirement' ? l.requirement : l.pain_point) || <span className="text-ink-400">–</span>}</span>
+                      {l.budget && (
+                        <span className="mt-0.5 block truncate text-xs text-ink-500">
+                          Budget <span className="font-medium text-ink-900">{l.budget}</span>
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-3.5">
+                      <FitScore score={l.fit_score} />
+                    </td>
+                    <td className="px-3 py-3">
+                      <StatusBadge status={l.status} />
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex justify-end">
+                        <LeadQuickActions lead={l} myWhatsapp={myWhatsapp} compact />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </>
   );
