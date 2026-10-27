@@ -8,6 +8,8 @@ export const STATUSES = [
   { value: 'interested', label: 'Interested', tone: 'hot', hint: 'They want to talk' },
   { value: 'call_booked', label: 'Call booked', tone: 'hot', hint: 'A meeting is on the calendar' },
   { value: 'proposal', label: 'Proposal sent', tone: 'hot', hint: 'Waiting on their decision' },
+  { value: 'scheduled', label: 'Workshop scheduled', tone: 'won', hint: 'Dates confirmed with the college' },
+  { value: 'delivered', label: 'Delivered', tone: 'won', hint: 'Program done; ask for a repeat or partnership' },
   { value: 'won', label: 'Won', tone: 'won', hint: 'Now a client' },
   { value: 'lost', label: 'Lost', tone: 'lost', hint: 'Not going ahead' },
   { value: 'no_response', label: 'No response', tone: 'lost', hint: 'No reply after follow-ups' },
@@ -36,4 +38,5 @@ export const KIND_LABELS: Record<string, string> = {
   cold: 'Cold outreach',
   requirement: 'Requirement post',
   inbound: 'Inbound',
+  college: 'College',
 };

@@ -10,7 +10,7 @@ const str = z.string().trim().max(20000).nullish();
 
 const LeadIn = z.object({
   id: z.string().trim().max(200).optional(),
-  kind: z.enum(['cold', 'requirement', 'inbound']).default('cold'),
+  kind: z.enum(['cold', 'requirement', 'inbound', 'college']).default('cold'),
   company: str,
   contact_name: str,
   contact_role: str,
@@ -40,6 +40,18 @@ const LeadIn = z.object({
   first_contacted: z.string().trim().max(40).nullish(),
   last_touch: z.string().trim().max(40).nullish(),
   followups_sent: z.coerce.number().int().min(0).max(20).nullish(),
+  institution_type: z.enum(['engineering', 'polytechnic', 'arts_science', 'other']).nullish(),
+  tier: z.coerce.number().int().min(1).max(3).nullish(),
+  tier_reason: str,
+  state: str,
+  district: str,
+  university: str,
+  accreditation: str,
+  department: str,
+  student_strength: z.coerce.number().int().min(0).max(100000).nullish(),
+  program: str,
+  domain: str,
+  best_time: str,
 });
 
 const DocIn = z.object({
@@ -73,10 +85,12 @@ const LEAD_COLUMNS = [
   'email', 'email_source_url', 'phone', 'whatsapp', 'linkedin_url', 'requirement', 'budget', 'pain_point', 'service_fit',
   'fit_score', 'approach', 'email_subject', 'email_body', 'whatsapp_message', 'bid_text', 'outlook_link', 'status', 'notes',
   'first_contacted', 'last_touch', 'followups_sent',
+  'institution_type', 'tier', 'tier_reason', 'state', 'district', 'university', 'accreditation', 'department',
+  'student_strength', 'program', 'domain', 'best_time',
 ] as const;
 
 const DATE_COLUMNS = new Set(['first_contacted', 'last_touch']);
-const STICKY = `('won','lost','call_booked','proposal','interested')`;
+const STICKY = `('won','lost','call_booked','proposal','interested','scheduled','delivered')`;
 
 function leadId(l: z.infer<typeof LeadIn>): string {
   if (l.id) return l.id.toLowerCase().replace(/[^a-z0-9.:_-]/g, '-').slice(0, 120);

@@ -1,15 +1,31 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 import { updateLeadAction } from "@/app/actions";
 import { CopyButton, LeadActions } from "@/components/LeadActions";
 import { Markdown } from "@/components/Markdown";
 import { CompanyMark, StageTrack } from "@/components/rich";
-import { Card, Field, FitScore, KindBadge, StatusBadge } from "@/components/ui";
+import {
+  Card,
+  Field,
+  FitScore,
+  KindBadge,
+  StatusBadge,
+  TierBadge,
+} from "@/components/ui";
 import { getAgent } from "@/lib/agents";
 import { requireUser } from "@/lib/auth";
 import { getSetting, q } from "@/lib/db";
-import { fmtDate, fmtDateTime } from "@/lib/format";
+import {
+  estValue,
+  fmtRupees,
+  INSTITUTION_TYPES,
+  MIN_BATCH,
+  programInfo,
+  PROPOSAL_URL,
+  TIERS,
+} from "@/lib/colleges";
+import { fmtDate, fmtDateTime, fmtNum } from "@/lib/format";
 import { getLead, leadActivities } from "@/lib/leads";
 import { hostOf, normalizePhone, safeHttpUrl } from "@/lib/links";
 import { STATUSES } from "@/lib/status";
@@ -37,7 +53,24 @@ function defaultApproach(
   l: NonNullable<Awaited<ReturnType<typeof getLead>>>,
 ): string {
   const lines: string[] = [];
-  if (l.kind === "requirement") {
+  if (l.kind === "college") {
+    const t = l.tier ? TIERS[l.tier] : null;
+    if (t)
+      return [
+        `**${t.label} playbook.** Pitch: ${t.pitch}`,
+        "",
+        ...t.approach.map((a) => `- ${a}`),
+      ].join("\n");
+    lines.push(
+      "Write to the Principal, Placement Officer or HoD with the proposal attached.",
+    );
+    lines.push(
+      "Offer the complimentary Industry Insight Talk as a no-risk first step.",
+    );
+    lines.push(
+      "If there is no reply in 4 days, follow up by phone or WhatsApp.",
+    );
+  } else if (l.kind === "requirement") {
     lines.push(
       `They publicly asked for help${l.source_platform ? ` on ${l.source_platform}` : ""}. Reply quickly: early, specific answers win.`,
     );
@@ -75,14 +108,17 @@ export default async function LeadPage({ params }: { params: { id: string } }) {
   const wa = normalizePhone(lead.whatsapp || lead.phone);
   const title =
     lead.company || lead.requirement?.slice(0, 80) || "Untitled lead";
+  const isCollege = lead.kind === "college";
+  const program = programInfo(lead.program);
+  const value = estValue(lead);
 
   return (
     <>
       <Link
-        href="/leads"
+        href={isCollege ? "/colleges" : "/leads"}
         className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-ink-500 hover:text-ink-900"
       >
-        <ArrowLeft size={15} /> All leads
+        <ArrowLeft size={15} /> {isCollege ? "All colleges" : "All leads"}
       </Link>
 
       <div className="card mb-4 grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] lg:items-end">
@@ -91,6 +127,7 @@ export default async function LeadPage({ params }: { params: { id: string } }) {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
               <StatusBadge status={lead.status} />
+              {isCollege && <TierBadge tier={lead.tier} />}
               <KindBadge kind={lead.kind} />
               <span className="inline-flex items-center gap-1.5 text-xs text-ink-500">
                 Fit <FitScore score={lead.fit_score} />
@@ -100,20 +137,36 @@ export default async function LeadPage({ params }: { params: { id: string } }) {
               {title}
             </h1>
             <p className="mt-0.5 text-sm text-ink-500">
-              {[
-                lead.contact_name &&
-                  `${lead.contact_name}${lead.contact_role ? `, ${lead.contact_role}` : ""}`,
-                lead.country,
-                lead.segment,
-              ]
+              {(isCollege
+                ? [
+                    INSTITUTION_TYPES[lead.institution_type ?? ""],
+                    lead.district,
+                    lead.accreditation,
+                    lead.contact_name &&
+                      `${lead.contact_name}${lead.contact_role ? `, ${lead.contact_role}` : ""}`,
+                  ]
+                : [
+                    lead.contact_name &&
+                      `${lead.contact_name}${lead.contact_role ? `, ${lead.contact_role}` : ""}`,
+                    lead.country,
+                    lead.segment,
+                  ]
+              )
                 .filter(Boolean)
                 .join(" · ") || "Contact person not known yet"}
             </p>
           </div>
         </div>
-        <StageTrack status={lead.status} />
+        <StageTrack status={lead.status} kind={lead.kind} />
         <div className="lg:col-span-2 border-t border-paper-rule pt-4">
-          <LeadActions lead={lead} myWhatsapp={myWhatsapp} />
+          <div className="flex flex-wrap items-start gap-2">
+            <LeadActions lead={lead} myWhatsapp={myWhatsapp} />
+            {isCollege && (
+              <a href={PROPOSAL_URL} download className="btn-ghost">
+                <Download size={15} className="text-ink-500" /> Proposal PDF
+              </a>
+            )}
+          </div>
           {!lead.email && !wa && !lead.source_url && (
             <p className="mt-2 text-sm text-ink-500">
               No email, WhatsApp number or post link is known for this lead yet.
@@ -124,54 +177,144 @@ export default async function LeadPage({ params }: { params: { id: string } }) {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-4">
-          <Card title="Who they are">
-            <dl className="grid gap-4 sm:grid-cols-2">
-              <Field label="Company">{lead.company}</Field>
-              <Field label="Website">
-                {lead.website && <ExtLink href={lead.website} />}
-              </Field>
-              <Field label="Contact person">{lead.contact_name}</Field>
-              <Field label="Role">{lead.contact_role}</Field>
-              <Field label="Country">{lead.country}</Field>
-              <Field label="Segment">{lead.segment}</Field>
-              <Field label="LinkedIn">
-                {lead.linkedin_url && (
-                  <ExtLink href={lead.linkedin_url}>Profile</ExtLink>
-                )}
-              </Field>
-              <Field label="Assigned to">{lead.assignee_name}</Field>
-            </dl>
-          </Card>
+          {isCollege ? (
+            <>
+              <Card title="Institution">
+                <dl className="grid gap-4 sm:grid-cols-2">
+                  <Field label="College">{lead.company}</Field>
+                  <Field label="Website">
+                    {lead.website && <ExtLink href={lead.website} />}
+                  </Field>
+                  <Field label="Type">
+                    {INSTITUTION_TYPES[lead.institution_type ?? ""]}
+                  </Field>
+                  <Field label="Tier">
+                    {lead.tier ? (
+                      <span className="flex flex-col items-start gap-1">
+                        <TierBadge tier={lead.tier} />
+                        {lead.tier_reason && (
+                          <span className="text-xs text-ink-500">
+                            {lead.tier_reason}
+                          </span>
+                        )}
+                      </span>
+                    ) : null}
+                  </Field>
+                  <Field label="University or board">{lead.university}</Field>
+                  <Field label="Accreditation">{lead.accreditation}</Field>
+                  <Field label="District">
+                    {[lead.district, lead.state].filter(Boolean).join(", ")}
+                  </Field>
+                  <Field label="Department">{lead.department}</Field>
+                  <Field label="Contact person">{lead.contact_name}</Field>
+                  <Field label="Role">{lead.contact_role}</Field>
+                  <Field label="Students in reach">
+                    {lead.student_strength
+                      ? `About ${fmtNum(lead.student_strength)}`
+                      : null}
+                  </Field>
+                  <Field label="Assigned to">{lead.assignee_name}</Field>
+                </dl>
+              </Card>
 
-          <Card
-            title={
-              lead.kind === "requirement"
-                ? "What they asked for"
-                : "Why they are a lead"
-            }
-          >
-            <dl className="grid gap-4">
-              {lead.requirement && (
-                <Field label="Their requirement">{lead.requirement}</Field>
-              )}
-              {lead.pain_point && (
-                <Field label="Buying signal">{lead.pain_point}</Field>
-              )}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Budget">{lead.budget}</Field>
-                <Field label="Best-fit Brainbric service">
-                  {lead.service_fit}
-                </Field>
-              </div>
-            </dl>
-          </Card>
+              <Card
+                title="What to pitch"
+                note={
+                  lead.tier
+                    ? `${TIERS[lead.tier].label}: ${TIERS[lead.tier].pitch}`
+                    : undefined
+                }
+              >
+                <dl className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Program">
+                    {program ? `${program.label} (${program.duration})` : null}
+                  </Field>
+                  <Field label="Estimated value">
+                    {value != null ? (
+                      <span className="num">
+                        <span className="font-semibold">
+                          {fmtRupees(value)}
+                        </span>
+                        {program && !("flat" in program && program.flat) && (
+                          <span className="text-ink-500">
+                            {" "}
+                            = {fmtRupees(program.fee)} ×{" "}
+                            {fmtNum(
+                              Math.max(
+                                MIN_BATCH,
+                                lead.student_strength ?? MIN_BATCH,
+                              ),
+                            )}{" "}
+                            students
+                          </span>
+                        )}
+                      </span>
+                    ) : program && program.fee === 0 ? (
+                      "Complimentary first step"
+                    ) : null}
+                  </Field>
+                  <Field label="Domain">{lead.domain}</Field>
+                  <Field label="Best time to approach">{lead.best_time}</Field>
+                  <div className="sm:col-span-2">
+                    <Field label="Why now">{lead.pain_point}</Field>
+                  </div>
+                </dl>
+              </Card>
+            </>
+          ) : (
+            <>
+              <Card title="Who they are">
+                <dl className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Company">{lead.company}</Field>
+                  <Field label="Website">
+                    {lead.website && <ExtLink href={lead.website} />}
+                  </Field>
+                  <Field label="Contact person">{lead.contact_name}</Field>
+                  <Field label="Role">{lead.contact_role}</Field>
+                  <Field label="Country">{lead.country}</Field>
+                  <Field label="Segment">{lead.segment}</Field>
+                  <Field label="LinkedIn">
+                    {lead.linkedin_url && (
+                      <ExtLink href={lead.linkedin_url}>Profile</ExtLink>
+                    )}
+                  </Field>
+                  <Field label="Assigned to">{lead.assignee_name}</Field>
+                </dl>
+              </Card>
+
+              <Card
+                title={
+                  lead.kind === "requirement"
+                    ? "What they asked for"
+                    : "Why they are a lead"
+                }
+              >
+                <dl className="grid gap-4">
+                  {lead.requirement && (
+                    <Field label="Their requirement">{lead.requirement}</Field>
+                  )}
+                  {lead.pain_point && (
+                    <Field label="Buying signal">{lead.pain_point}</Field>
+                  )}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Budget">{lead.budget}</Field>
+                    <Field label="Best-fit Brainbric service">
+                      {lead.service_fit}
+                    </Field>
+                  </div>
+                </dl>
+              </Card>
+            </>
+          )}
 
           <Card
             title="How to approach them"
             note={
               lead.approach
                 ? "Written by the agent from its research."
-                : "General guidance. The agent adds a tailored plan on its next run."
+                : isCollege
+                  ? "The tier playbook. The agent adds a plan for this college on its next run."
+                  : "General guidance. The agent adds a tailored plan on its next run."
             }
           >
             <Markdown>{lead.approach || defaultApproach(lead)}</Markdown>

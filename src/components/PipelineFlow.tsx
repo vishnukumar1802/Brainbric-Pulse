@@ -9,7 +9,7 @@ const STAGES = [
   { key: 'drafted', label: 'Ready to send', statuses: ['drafted'], href: '/leads?status=drafted', note: 'Drafted, waiting for you' },
   { key: 'sent', label: 'Contacted', statuses: ['sent', 'followup1', 'followup2'], href: '/leads?status=sent', note: 'Sent, waiting on them' },
   { key: 'hot', label: 'In talks', statuses: ['replied', 'interested', 'call_booked', 'proposal'], href: '/leads?status=hot', note: 'Replied or interested' },
-  { key: 'won', label: 'Won', statuses: ['won'], href: '/leads?status=won', note: 'Now clients' },
+  { key: 'won', label: 'Won', statuses: ['scheduled', 'delivered', 'won'], href: '/leads?status=won', note: 'Clients and booked workshops' },
 ] as const;
 
 const CLOSED = [

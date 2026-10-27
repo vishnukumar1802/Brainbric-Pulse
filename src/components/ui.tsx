@@ -103,7 +103,7 @@ export function KpiStrip({ items }: { items: { label: string; value: string; sub
         const inner = (
           <>
             <div className="text-xs text-ink-500">{k.label}</div>
-            <div className="num mt-1.5 text-2xl font-semibold tracking-[-0.01em] text-ink-950">{k.value}</div>
+            <div className={`num mt-1.5 whitespace-nowrap font-semibold tracking-[-0.01em] text-ink-950 ${k.value.length > 7 ? 'text-xl' : 'text-2xl'}`}>{k.value}</div>
             {k.sub && <div className="mt-0.5 text-xs text-ink-500">{k.sub}</div>}
           </>
         );
@@ -138,4 +138,11 @@ export function Field({ label, children }: { label: string; children: React.Reac
       <dd className="break-words text-sm text-ink-900">{children || <span className="text-ink-400">–</span>}</dd>
     </div>
   );
+}
+
+/** Tier as an ordinal shade: darkest for Tier 1. Categories, not data, so no hue. */
+export function TierBadge({ tier }: { tier: number | null | undefined }) {
+  if (!tier) return <span className="text-xs text-ink-400">Untiered</span>;
+  const cls = tier === 1 ? 'bg-ink-900 text-white' : tier === 2 ? 'bg-[#D9D5D1] text-ink-950' : 'bg-[#F0EEEB] text-ink-700';
+  return <span className={`inline-flex h-5 items-center whitespace-nowrap rounded px-1.5 text-xs font-medium ${cls}`}>Tier {tier}</span>;
 }

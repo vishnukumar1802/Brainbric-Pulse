@@ -10,12 +10,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await requireUser();
   const [agents, counts] = await Promise.all([
     listAgents(),
-    one<{ drafted: number; hot: number }>(
+    one<{ drafted: number; hot: number; colleges: number }>(
       `SELECT COUNT(*) FILTER (WHERE status = 'drafted')::int AS drafted,
+              COUNT(*) FILTER (WHERE status = 'drafted' AND kind = 'college')::int AS colleges,
               COUNT(*) FILTER (WHERE status IN ('replied','interested','call_booked','proposal'))::int AS hot FROM leads`,
     ),
   ]);
-  const sidebar = <SidebarContent user={user} agents={agents} counts={counts ?? { drafted: 0, hot: 0 }} />;
+  const sidebar = <SidebarContent user={user} agents={agents} counts={counts ?? { drafted: 0, hot: 0, colleges: 0 }} />;
 
   return (
     <div className="min-h-screen lg:pl-60">

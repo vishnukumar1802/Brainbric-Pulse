@@ -75,6 +75,20 @@ CREATE TABLE IF NOT EXISTS leads (
 CREATE INDEX IF NOT EXISTS leads_status_idx ON leads(status);
 CREATE INDEX IF NOT EXISTS leads_kind_idx ON leads(kind);
 
+-- College outreach: the institution's profile, its tier and what to pitch.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS institution_type TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS tier INT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS tier_reason TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS state TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS district TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS university TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS accreditation TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS department TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS student_strength INT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS program TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS domain TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS best_time TEXT;
+
 CREATE TABLE IF NOT EXISTS activities (
   id SERIAL PRIMARY KEY,
   lead_id TEXT REFERENCES leads(id) ON DELETE CASCADE,
@@ -118,7 +132,8 @@ INSERT INTO agents (slug, name, description, schedule, sort) VALUES
   ('inbox-assistant', 'Inbox & Meetings', 'Sorts the inbox, drafts replies, preps meetings and writes proposals.', 'Every 2 hours', 30),
   ('daily-brief', 'Daily Brief', 'Your top actions for the day and the full pipeline report.', '9:00 AM daily', 40),
   ('social-content', 'Social Content', 'Weekly LinkedIn posts, reel scripts and carousels.', 'Monday 9:00 AM', 50),
-  ('competitor-watch', 'Competitor Watch', 'Competing agencies, their pricing and where Brainbric can win.', 'Wednesday 9:00 AM', 60)
+  ('competitor-watch', 'Competitor Watch', 'Competing agencies, their pricing and where Brainbric can win.', 'Wednesday 9:00 AM', 60),
+  ('college-outreach', 'College Outreach', 'Finds Tamil Nadu colleges, sorts them into tiers and drafts workshop proposals for the right department.', 'Weekdays 10:00 AM', 15)
 ON CONFLICT (slug) DO NOTHING;
 `;
 

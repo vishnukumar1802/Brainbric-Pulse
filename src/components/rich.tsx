@@ -235,17 +235,28 @@ const TRACK = [
   { label: 'Ready to send', statuses: ['drafted'] },
   { label: 'Contacted', statuses: ['sent', 'followup1', 'followup2'] },
   { label: 'In talks', statuses: ['replied', 'interested', 'call_booked', 'proposal'] },
-  { label: 'Won', statuses: ['won'] },
+  { label: 'Won', statuses: ['won', 'scheduled', 'delivered'] },
+];
+
+// Colleges end in a booked and delivered workshop rather than a signed client.
+const COLLEGE_TRACK = [
+  { label: 'Found', statuses: ['new'] },
+  { label: 'Proposal ready', statuses: ['drafted'] },
+  { label: 'Contacted', statuses: ['sent', 'followup1', 'followup2'] },
+  { label: 'In talks', statuses: ['replied', 'interested', 'call_booked', 'proposal'] },
+  { label: 'Scheduled', statuses: ['scheduled'] },
+  { label: 'Delivered', statuses: ['delivered', 'won'] },
 ];
 
 /** Where one lead sits in the pipeline. A closed lead shows the track greyed out with its status. */
-export function StageTrack({ status }: { status: string }) {
-  const at = TRACK.findIndex((t) => t.statuses.includes(status));
+export function StageTrack({ status, kind }: { status: string; kind?: string }) {
+  const track = kind === 'college' ? COLLEGE_TRACK : TRACK;
+  const at = track.findIndex((t) => t.statuses.includes(status));
   const closed = at === -1;
   return (
     <div>
-      <ol className="grid grid-cols-5 gap-1.5" aria-label="Pipeline stage">
-        {TRACK.map((t, i) => {
+      <ol className={`grid gap-1.5 ${track.length === 6 ? 'grid-cols-6' : 'grid-cols-5'}`} aria-label="Pipeline stage">
+        {track.map((t, i) => {
           const done = !closed && i < at;
           const current = !closed && i === at;
           return (

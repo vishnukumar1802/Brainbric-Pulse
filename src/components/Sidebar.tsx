@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { FileText, LayoutGrid, LogOut, Send, Settings, Target, Users } from 'lucide-react';
+import { FileText, GraduationCap, LayoutGrid, LogOut, Send, Settings, Target, Users } from 'lucide-react';
 import { logoutAction } from '@/app/actions';
 import type { Agent } from '@/lib/agents';
 import type { User } from '@/lib/auth';
@@ -13,7 +13,7 @@ function agentDot(a: Agent) {
   return a.last_run_at ? 'bg-[#247B50]' : 'bg-[#D9D5D1]';
 }
 
-export function SidebarContent({ user, agents, counts }: { user: User; agents: Agent[]; counts: { drafted: number; hot: number } }) {
+export function SidebarContent({ user, agents, counts }: { user: User; agents: Agent[]; counts: { drafted: number; hot: number; colleges: number } }) {
   const initials = user.name
     .split(/\s+/)
     .map((p) => p[0])
@@ -35,6 +35,9 @@ export function SidebarContent({ user, agents, counts }: { user: User; agents: A
         </NavLink>
         <NavLink href="/leads" notWhen="status=drafted">
           <Target size={16} strokeWidth={1.75} /> All leads
+        </NavLink>
+        <NavLink href="/colleges" count={counts.colleges}>
+          <GraduationCap size={16} strokeWidth={1.75} /> Colleges
         </NavLink>
         <NavLink href="/reports">
           <FileText size={16} strokeWidth={1.75} /> Reports

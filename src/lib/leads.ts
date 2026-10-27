@@ -37,6 +37,18 @@ export type Lead = {
   first_contacted: string | null;
   last_touch: string | null;
   followups_sent: number;
+  institution_type: string | null;
+  tier: number | null;
+  tier_reason: string | null;
+  state: string | null;
+  district: string | null;
+  university: string | null;
+  accreditation: string | null;
+  department: string | null;
+  student_strength: number | null;
+  program: string | null;
+  domain: string | null;
+  best_time: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -48,6 +60,9 @@ export type LeadFilters = {
   agent?: string;
   q?: string;
   mine?: number;
+  tier?: number;
+  district?: string;
+  institutionType?: string;
 };
 
 export async function listLeads(f: LeadFilters = {}, limit = 500): Promise<Lead[]> {
@@ -63,11 +78,14 @@ export async function listLeads(f: LeadFilters = {}, limit = 500): Promise<Lead[
   if (f.source) add('l.source_platform = ?', f.source);
   if (f.agent) add('l.agent = ?', f.agent);
   if (f.mine) add('l.assigned_to = ?', f.mine);
+  if (f.tier) add('l.tier = ?', f.tier);
+  if (f.district) add('l.district = ?', f.district);
+  if (f.institutionType) add('l.institution_type = ?', f.institutionType);
   if (f.q) {
     params.push(`%${f.q.toLowerCase()}%`);
     const p = `$${params.length}`;
     where.push(
-      `(LOWER(COALESCE(l.company,'')) LIKE ${p} OR LOWER(COALESCE(l.requirement,'')) LIKE ${p} OR LOWER(COALESCE(l.email,'')) LIKE ${p} OR LOWER(COALESCE(l.country,'')) LIKE ${p} OR LOWER(COALESCE(l.contact_name,'')) LIKE ${p} OR LOWER(COALESCE(l.pain_point,'')) LIKE ${p})`,
+      `(LOWER(COALESCE(l.company,'')) LIKE ${p} OR LOWER(COALESCE(l.requirement,'')) LIKE ${p} OR LOWER(COALESCE(l.email,'')) LIKE ${p} OR LOWER(COALESCE(l.country,'')) LIKE ${p} OR LOWER(COALESCE(l.contact_name,'')) LIKE ${p} OR LOWER(COALESCE(l.pain_point,'')) LIKE ${p} OR LOWER(COALESCE(l.district,'')) LIKE ${p} OR LOWER(COALESCE(l.department,'')) LIKE ${p})`,
     );
   }
   params.push(limit);
@@ -126,8 +144,8 @@ export async function pipelineStats() {
               COUNT(*) FILTER (WHERE kind = 'requirement')::int AS requirement,
               COUNT(*) FILTER (WHERE status = 'drafted')::int AS drafted,
               COUNT(*) FILTER (WHERE status IN ('replied','interested','call_booked','proposal'))::int AS hot,
-              COUNT(*) FILTER (WHERE status IN ('sent','followup1','followup2','replied','interested','call_booked','proposal','won','no_response'))::int AS contacted,
-              COUNT(*) FILTER (WHERE status = 'won')::int AS won,
+              COUNT(*) FILTER (WHERE status IN ('sent','followup1','followup2','replied','interested','call_booked','proposal','scheduled','delivered','won','no_response'))::int AS contacted,
+              COUNT(*) FILTER (WHERE status IN ('scheduled','delivered','won'))::int AS won,
               COUNT(*) FILTER (WHERE created_at > now() - interval '7 days')::int AS week
        FROM leads`,
     ),
