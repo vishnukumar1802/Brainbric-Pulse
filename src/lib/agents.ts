@@ -8,6 +8,9 @@ export type Agent = {
   schedule: string;
   enabled: boolean;
   sort: number;
+  paused: boolean;
+  paused_at: string | null;
+  paused_by: string | null;
   last_run_at?: string | null;
   last_status?: string | null;
   last_summary?: string | null;

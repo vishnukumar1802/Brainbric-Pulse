@@ -1,6 +1,7 @@
-import { createHash, timingSafeEqual } from 'crypto';
+import { createHash } from 'crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { agentAuthorized } from '@/lib/agentAuth';
 import { q } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -75,15 +76,6 @@ const LEAD_COLUMNS = [
 const DATE_COLUMNS = new Set(['first_contacted', 'last_touch']);
 const STICKY = `('won','lost','call_booked','proposal','interested')`;
 
-function authorized(req: Request): boolean {
-  const expected = process.env.INGEST_TOKEN;
-  if (!expected || expected.length < 24) return false;
-  const got = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
-  const a = Buffer.from(got);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
 function leadId(l: z.infer<typeof LeadIn>): string {
   if (l.id) return l.id.toLowerCase().replace(/[^a-z0-9.:_-]/g, '-').slice(0, 120);
   const key = (l.source_url || l.email || l.website || l.company || JSON.stringify(l)).trim().toLowerCase();
@@ -97,7 +89,7 @@ function toDateOrNull(v: string | null | undefined): string | null {
 }
 
 export async function POST(req: Request) {
-  if (!authorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!agentAuthorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   let body: unknown;
   try {

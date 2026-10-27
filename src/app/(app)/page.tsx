@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { Card, Empty, KindBadge, Kpi, PageHeader, StatusBadge } from '@/components/ui';
+import { AgentToggle, AllAgentsToggle } from '@/components/AgentToggle';
 import { LeadQuickActions } from '@/components/LeadActions';
 import { Markdown } from '@/components/Markdown';
 import { listAgents, listDocs } from '@/lib/agents';
@@ -91,23 +92,43 @@ export default async function Overview() {
           )}
         </Card>
 
-        <Card title="AI team" note="Last time each agent reported in.">
+        <Card
+          title="AI team"
+          note={
+            agents.some((a) => a.paused)
+              ? `${agents.filter((a) => a.paused).length} of ${agents.length} paused. Paused agents skip their runs until you start them.`
+              : 'All agents running. Pause any agent to stop its runs.'
+          }
+          action={
+            user.role === 'admin' ? (
+              <AllAgentsToggle anyRunning={agents.some((a) => !a.paused)} anyPaused={agents.some((a) => a.paused)} />
+            ) : undefined
+          }
+        >
           <ul className="flex flex-col gap-3">
             {agents.map((a) => (
-              <li key={a.slug}>
-                <Link href={`/agents/${a.slug}`} className="group flex items-start gap-3">
-                  <span
-                    className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${a.last_status === 'error' ? 'bg-flame-red' : a.last_status === 'warning' ? 'bg-flame-amber' : a.last_run_at ? 'bg-emerald-500' : 'bg-ink-400'}`}
-                    aria-hidden
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-sm font-semibold text-ink-950 group-hover:text-flame-deep">{a.name}</span>
-                      <span className="shrink-0 text-xs text-ink-500">{fmtAgo(a.last_run_at)}</span>
-                    </div>
-                    <p className="line-clamp-2 text-xs text-ink-500">{a.last_summary || a.schedule}</p>
+              <li key={a.slug} className="flex items-start gap-3">
+                <span
+                  className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${a.paused ? 'bg-flame-amber' : a.last_status === 'error' ? 'bg-flame-red' : a.last_status === 'warning' ? 'bg-flame-amber' : a.last_run_at ? 'bg-emerald-500' : 'bg-ink-400'}`}
+                  aria-hidden
+                />
+                <Link href={`/agents/${a.slug}`} className="group min-w-0 flex-1">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-sm font-semibold text-ink-950 group-hover:text-flame-deep">
+                      {a.name}
+                      {a.paused && (
+                        <span className="ml-2 rounded-full bg-flame-amber/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#8A4B00]">
+                          Paused
+                        </span>
+                      )}
+                    </span>
+                    <span className="shrink-0 text-xs text-ink-500">{fmtAgo(a.last_run_at)}</span>
                   </div>
+                  <p className="line-clamp-2 text-xs text-ink-500">
+                    {a.paused ? `Paused by ${a.paused_by || 'an admin'} ${fmtAgo(a.paused_at)}. ${a.schedule}` : a.last_summary || a.schedule}
+                  </p>
                 </Link>
+                {user.role === 'admin' && <AgentToggle slug={a.slug} paused={a.paused} name={a.name} />}
               </li>
             ))}
           </ul>

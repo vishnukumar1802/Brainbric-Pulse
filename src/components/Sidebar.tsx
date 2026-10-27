@@ -39,10 +39,11 @@ export function SidebarContent({ user, agents, counts }: { user: User; agents: A
           {agents.map((a) => (
             <NavLink key={a.slug} href={`/agents/${a.slug}`} sub>
               <span
-                className={`h-1.5 w-1.5 shrink-0 rounded-full ${a.last_status === 'error' ? 'bg-flame-red' : a.last_run_at ? 'bg-emerald-400' : 'bg-ink-500'}`}
+                className={`h-1.5 w-1.5 shrink-0 rounded-full ${a.paused ? 'bg-flame-amber' : a.last_status === 'error' ? 'bg-flame-red' : a.last_run_at ? 'bg-emerald-400' : 'bg-ink-500'}`}
                 aria-hidden
               />
               <span className="truncate">{a.name}</span>
+              {a.paused && <span className="ml-auto text-[10px] font-semibold uppercase text-flame-amber">Paused</span>}
             </NavLink>
           ))}
         </nav>

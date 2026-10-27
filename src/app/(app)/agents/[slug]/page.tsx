@@ -1,16 +1,17 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
+import { AgentToggle } from '@/components/AgentToggle';
 import { Card, Empty, KindBadge, PageHeader, StatusBadge } from '@/components/ui';
 import { agentRuns, docKindLabel, getAgent, listDocs } from '@/lib/agents';
 import { requireUser } from '@/lib/auth';
-import { fmtDate, fmtDateTime, fmtNum } from '@/lib/format';
+import { fmtAgo, fmtDate, fmtDateTime, fmtNum } from '@/lib/format';
 import { listLeads } from '@/lib/leads';
 
 export const metadata = { title: 'Agent' };
 
 export default async function AgentPage({ params }: { params: { slug: string } }) {
-  await requireUser();
+  const user = await requireUser();
   const agent = await getAgent(params.slug);
   if (!agent) notFound();
   const [runs, docs, leads] = await Promise.all([agentRuns(agent.slug, 25), listDocs({ agent: agent.slug }, 12), listLeads({ agent: agent.slug }, 10)]);
@@ -20,7 +21,16 @@ export default async function AgentPage({ params }: { params: { slug: string } }
       <Link href="/agents" className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-ink-500 hover:text-ink-900">
         <ArrowLeft size={15} /> AI team
       </Link>
-      <PageHeader eyebrow={agent.schedule || 'AI agent'} title={agent.name} subtitle={agent.description} />
+      <PageHeader
+        eyebrow={agent.paused ? `Paused · ${agent.schedule || 'AI agent'}` : agent.schedule || 'AI agent'}
+        title={agent.name}
+        subtitle={
+          agent.paused
+            ? `Paused by ${agent.paused_by || 'an admin'} ${fmtAgo(agent.paused_at)}. It skips its runs until you start it again.`
+            : agent.description
+        }
+        actions={user.role === 'admin' ? <AgentToggle slug={agent.slug} paused={agent.paused} name={agent.name} size="md" /> : undefined}
+      />
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
         <Card title="Run history" note="What the agent did each time it ran.">

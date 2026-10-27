@@ -112,6 +112,25 @@ export async function saveSettingsAction(_: FormState, form: FormData): Promise<
   return { ok: 'Settings saved.' };
 }
 
+// ---------- Agents (admin) ----------
+
+/** Pause or start one agent, or every agent when slug is "*". Agents check this before each run. */
+export async function setAgentPausedAction(form: FormData): Promise<void> {
+  const admin = await requireAdmin();
+  const slug = String(form.get('slug') ?? '');
+  const paused = form.get('paused') === 'true';
+  if (slug !== '*' && !/^[a-z0-9][a-z0-9-]{1,48}$/.test(slug)) return;
+  const set = paused
+    ? 'paused = TRUE, paused_at = now(), paused_by = $1'
+    : 'paused = FALSE, paused_at = NULL, paused_by = NULL';
+  if (slug === '*') {
+    await q(`UPDATE agents SET ${set} WHERE enabled`, paused ? [admin.name] : []);
+  } else {
+    await q(`UPDATE agents SET ${set} WHERE slug = $${paused ? 2 : 1}`, paused ? [admin.name, slug] : [slug]);
+  }
+  revalidatePath('/', 'layout');
+}
+
 // ---------- Leads ----------
 
 const VALID_STATUS = new Set<string>(STATUSES.map((s) => s.value));
