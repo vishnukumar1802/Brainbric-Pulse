@@ -142,3 +142,32 @@ export async function pipelineStats() {
   ]);
   return { totals, byStatus, bySource, recent };
 }
+
+export type FeedItem = Activity & { company: string | null; kind: string | null; requirement: string | null };
+
+/** The latest things that happened across all leads, newest first. */
+export async function recentActivity(limit = 8): Promise<FeedItem[]> {
+  return q<FeedItem>(
+    `SELECT a.*, l.company, l.kind, l.requirement FROM activities a LEFT JOIN leads l ON l.id = a.lead_id
+     ORDER BY a.created_at DESC LIMIT $1`,
+    [limit],
+  );
+}
+
+const CLOSED_SQL = `('lost','no_response','do_not_contact')`;
+
+/** Open leads by country, for the India vs international split. */
+export async function openByCountry(): Promise<{ country: string; n: number }[]> {
+  return q<{ country: string; n: number }>(
+    `SELECT COALESCE(NULLIF(TRIM(country), ''), 'Unknown') AS country, COUNT(*)::int AS n
+     FROM leads WHERE status NOT IN ${CLOSED_SQL} GROUP BY 1 ORDER BY n DESC, 1`,
+  );
+}
+
+/** The drafted lead to send first: best fit, then oldest draft. */
+export async function nextUp(): Promise<Lead | null> {
+  return one<Lead>(
+    `SELECT l.*, u.name AS assignee_name FROM leads l LEFT JOIN users u ON u.id = l.assigned_to
+     WHERE l.status = 'drafted' ORDER BY COALESCE(l.fit_score, 0) DESC, l.created_at ASC LIMIT 1`,
+  );
+}

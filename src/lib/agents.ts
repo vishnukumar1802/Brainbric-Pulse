@@ -98,3 +98,18 @@ export const DOC_KIND_LABELS: Record<string, string> = {
 export function docKindLabel(kind: string): string {
   return DOC_KIND_LABELS[kind] ?? kind.replace(/[-_]/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
 }
+
+export type RunTick = { agent: string; status: string; summary: string | null; created_at: string };
+
+/** The last `n` runs of every agent, oldest first within each agent. */
+export async function recentRunsByAgent(n = 12): Promise<Record<string, RunTick[]>> {
+  const rows = await q<RunTick>(
+    `SELECT agent, status, summary, created_at FROM (
+       SELECT agent, status, summary, created_at, row_number() OVER (PARTITION BY agent ORDER BY created_at DESC) AS rn FROM agent_runs
+     ) r WHERE rn <= $1 ORDER BY agent, created_at`,
+    [n],
+  );
+  const out: Record<string, RunTick[]> = {};
+  for (const r of rows) (out[r.agent] ??= []).push(r);
+  return out;
+}

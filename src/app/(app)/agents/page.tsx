@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { AgentToggle, AllAgentsToggle } from '@/components/AgentToggle';
 import { Card, PageHeader } from '@/components/ui';
-import { listAgents } from '@/lib/agents';
+import { RunStrip } from '@/components/rich';
+import { listAgents, recentRunsByAgent } from '@/lib/agents';
 import { requireUser } from '@/lib/auth';
 import { fmtAgo, fmtNum } from '@/lib/format';
 
@@ -9,7 +10,7 @@ export const metadata = { title: 'AI team' };
 
 export default async function AgentsPage() {
   const user = await requireUser();
-  const agents = await listAgents();
+  const [agents, runs] = await Promise.all([listAgents(), recentRunsByAgent(20)]);
   const isAdmin = user.role === 'admin';
   const paused = agents.filter((a) => a.paused).length;
   return (
@@ -25,6 +26,7 @@ export default async function AgentsPage() {
             <tr className="border-b border-paper-line text-left text-xs font-medium text-ink-500">
               <th className="px-5 py-2.5">Agent</th>
               <th className="px-3 py-2.5">Schedule</th>
+              <th className="px-3 py-2.5">Last 20 runs</th>
               <th className="px-3 py-2.5">Last run</th>
               <th className="px-3 py-2.5 text-right">Runs, 7 days</th>
               {isAdmin && (
@@ -44,6 +46,9 @@ export default async function AgentsPage() {
                   <p className="mt-0.5 line-clamp-2 text-xs text-ink-500">{a.description}</p>
                 </td>
                 <td className="whitespace-nowrap px-3 py-3 text-ink-700">{a.schedule || 'On demand'}</td>
+                <td className="px-3 py-3.5">
+                  <RunStrip runs={runs[a.slug] ?? []} slots={20} />
+                </td>
                 <td className="whitespace-nowrap px-3 py-3">
                   {a.paused ? (
                     <span className="text-ink-500">Paused {a.paused_at ? fmtAgo(a.paused_at) : ''}</span>
