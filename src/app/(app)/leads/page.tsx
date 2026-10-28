@@ -12,7 +12,7 @@ import {
 import { requireUser } from "@/lib/auth";
 import { getSetting } from "@/lib/db";
 import { fmtNum, fmtShortDate } from "@/lib/format";
-import { listLeads, sourcesList, type LeadFilters } from "@/lib/leads";
+import { listLeads, nichesList, sourcesList, type LeadFilters } from "@/lib/leads";
 import { STATUSES, KIND_LABELS } from "@/lib/status";
 
 export const metadata = { title: "Leads" };
@@ -21,6 +21,7 @@ type SP = {
   kind?: string;
   status?: string;
   source?: string;
+  niche?: string;
   q?: string;
   mine?: string;
 };
@@ -35,12 +36,14 @@ export default async function LeadsPage({
     kind: searchParams.kind || undefined,
     status: searchParams.status || undefined,
     source: searchParams.source || undefined,
+    niche: searchParams.niche || undefined,
     q: searchParams.q?.trim() || undefined,
     mine: searchParams.mine ? user.id : undefined,
   };
-  const [leads, sources, myWhatsapp] = await Promise.all([
+  const [leads, sources, niches, myWhatsapp] = await Promise.all([
     listLeads(filters),
     sourcesList(),
+    nichesList(),
     getSetting("my_whatsapp"),
   ]);
   const filtered = Object.values(filters).some(Boolean);
@@ -57,7 +60,7 @@ export default async function LeadsPage({
       />
 
       <form
-        className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))_auto_auto]"
+        className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,1fr))_auto_auto]"
         method="get"
       >
         <label className="relative block">
@@ -80,7 +83,7 @@ export default async function LeadsPage({
           aria-label="Type"
         >
           <option value="">All types</option>
-          {Object.entries(KIND_LABELS).map(([v, l]) => (
+          {Object.entries(KIND_LABELS).filter(([v]) => v !== "college").map(([v, l]) => (
             <option key={v} value={v}>
               {l}
             </option>
@@ -110,6 +113,19 @@ export default async function LeadsPage({
           {sources.map((s) => (
             <option key={s} value={s}>
               {s}
+            </option>
+          ))}
+        </select>
+        <select
+          name="niche"
+          defaultValue={searchParams.niche ?? ""}
+          className="input"
+          aria-label="Niche"
+        >
+          <option value="">All niches</option>
+          {niches.map((n) => (
+            <option key={n.niche} value={n.niche}>
+              {n.niche} ({n.n})
             </option>
           ))}
         </select>
@@ -163,7 +179,7 @@ export default async function LeadsPage({
                       <StatusBadge status={l.status} />
                     </div>
                     <div className="mt-0.5 truncate text-xs text-ink-500">
-                      {[l.source_platform || 'Web research', l.country, fmtShortDate(l.updated_at)].filter(Boolean).join(' · ')}
+                      {[l.niche, l.source_platform || 'Web research', l.country, fmtShortDate(l.updated_at)].filter(Boolean).join(' · ')}
                     </div>
                     {(l.kind === 'requirement' ? l.requirement : l.pain_point) && (
                       <p className="mt-1.5 line-clamp-2 text-[13px] text-ink-700">{l.kind === 'requirement' ? l.requirement : l.pain_point}</p>
@@ -210,7 +226,7 @@ export default async function LeadsPage({
                             {leadName(l)}
                           </Link>
                           <div className="mt-0.5 truncate text-xs text-ink-500" title={l.assignee_name ? `Assigned to ${l.assignee_name}` : undefined}>
-                            {[l.source_platform || 'Web research', l.country, fmtShortDate(l.updated_at)].filter(Boolean).join(' · ')}
+                            {[l.niche, l.source_platform || 'Web research', l.country, fmtShortDate(l.updated_at)].filter(Boolean).join(' · ')}
                           </div>
                         </div>
                       </div>

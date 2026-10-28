@@ -5,7 +5,9 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { checkPassword, endSession, ensureBootstrapAdmin, hashPassword, requireAdmin, requireUser, startSession } from '@/lib/auth';
 import { one, q, setSetting } from '@/lib/db';
+import { saveFocus } from '@/lib/focus';
 import { logActivity } from '@/lib/leads';
+import { SERVICES } from '@/lib/services';
 import { STATUSES } from '@/lib/status';
 
 export type FormState = { error?: string; ok?: string } | undefined;
@@ -194,4 +196,34 @@ export async function trackActionAction(id: string, type: string): Promise<void>
   if (!labels[type]) return;
   await logActivity(id, me, type, labels[type]);
   revalidatePath(`/leads/${encodeURIComponent(id)}`);
+}
+
+// ---------- Focus ----------
+
+const FocusIn = z.object({
+  service: z.enum(SERVICES.map((x) => x.slug) as [string, ...string[]]),
+  product: z.string().trim().max(120).optional(),
+  product_details: z.string().trim().max(2000).optional(),
+  regions: z.string().trim().max(300).optional(),
+  notes: z.string().trim().max(1000).optional(),
+});
+
+export async function setFocusAction(_: FormState, form: FormData): Promise<FormState> {
+  const admin = await requireAdmin();
+  const parsed = FocusIn.safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { error: 'Choose a service.' };
+  const f = parsed.data;
+  const service = SERVICES.find((x) => x.slug === f.service)!;
+  if (service.needsProduct && !f.product) return { error: 'Name the SaaS product or industry, for example Facility Management.' };
+  await saveFocus({
+    service: f.service,
+    product: service.needsProduct ? f.product ?? null : null,
+    product_details: service.needsProduct ? f.product_details || null : null,
+    regions: f.regions || null,
+    notes: f.notes || null,
+    set_by: admin.name,
+    set_at: new Date().toISOString(),
+  });
+  revalidatePath('/', 'layout');
+  return { ok: 'Focus saved. The agents use it from their next run.' };
 }

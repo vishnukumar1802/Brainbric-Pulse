@@ -49,6 +49,7 @@ export type Lead = {
   program: string | null;
   domain: string | null;
   best_time: string | null;
+  niche: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -63,6 +64,7 @@ export type LeadFilters = {
   tier?: number;
   district?: string;
   institutionType?: string;
+  niche?: string;
 };
 
 export async function listLeads(f: LeadFilters = {}, limit = 500): Promise<Lead[]> {
@@ -72,7 +74,10 @@ export async function listLeads(f: LeadFilters = {}, limit = 500): Promise<Lead[
     params.push(v);
     where.push(sql.replace('?', `$${params.length}`));
   };
+  // Colleges are a separate service with their own page; software views never include them.
   if (f.kind) add('l.kind = ?', f.kind);
+  else where.push("l.kind <> 'college'");
+  if (f.niche) add('l.niche = ?', f.niche);
   if (f.status === 'hot') where.push(`l.status IN (${HOT_STATUSES.map((s) => `'${s}'`).join(',')})`);
   else if (f.status) add('l.status = ?', f.status);
   if (f.source) add('l.source_platform = ?', f.source);
@@ -131,7 +136,7 @@ export async function logActivity(leadId: string | null, actor: { id?: number | 
 
 export async function sourcesList(): Promise<string[]> {
   const rows = await q<{ s: string }>(
-    `SELECT DISTINCT source_platform AS s FROM leads WHERE source_platform IS NOT NULL AND source_platform <> '' ORDER BY 1`,
+    `SELECT DISTINCT source_platform AS s FROM leads WHERE kind <> 'college' AND source_platform IS NOT NULL AND source_platform <> '' ORDER BY 1`,
   );
   return rows.map((r) => r.s);
 }
@@ -147,15 +152,15 @@ export async function pipelineStats() {
               COUNT(*) FILTER (WHERE status IN ('sent','followup1','followup2','replied','interested','call_booked','proposal','scheduled','delivered','won','no_response'))::int AS contacted,
               COUNT(*) FILTER (WHERE status IN ('scheduled','delivered','won'))::int AS won,
               COUNT(*) FILTER (WHERE created_at > now() - interval '7 days')::int AS week
-       FROM leads`,
+       FROM leads WHERE kind <> 'college'`,
     ),
-    q<{ status: string; n: number }>('SELECT status, COUNT(*)::int AS n FROM leads GROUP BY status'),
+    q<{ status: string; n: number }>("SELECT status, COUNT(*)::int AS n FROM leads WHERE kind <> 'college' GROUP BY status"),
     q<{ source: string; n: number }>(
-      `SELECT COALESCE(NULLIF(source_platform, ''), 'Other') AS source, COUNT(*)::int AS n FROM leads GROUP BY 1 ORDER BY n DESC LIMIT 8`,
+      `SELECT COALESCE(NULLIF(source_platform, ''), 'Other') AS source, COUNT(*)::int AS n FROM leads WHERE kind <> 'college' GROUP BY 1 ORDER BY n DESC LIMIT 8`,
     ),
     q<{ day: string; n: number }>(
       `SELECT to_char(created_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS day, COUNT(*)::int AS n
-       FROM leads WHERE created_at > now() - interval '14 days' GROUP BY 1 ORDER BY 1`,
+       FROM leads WHERE kind <> 'college' AND created_at > now() - interval '14 days' GROUP BY 1 ORDER BY 1`,
     ),
   ]);
   return { totals, byStatus, bySource, recent };
@@ -167,6 +172,7 @@ export type FeedItem = Activity & { company: string | null; kind: string | null;
 export async function recentActivity(limit = 8): Promise<FeedItem[]> {
   return q<FeedItem>(
     `SELECT a.*, l.company, l.kind, l.requirement FROM activities a LEFT JOIN leads l ON l.id = a.lead_id
+     WHERE l.kind IS DISTINCT FROM 'college'
      ORDER BY a.created_at DESC LIMIT $1`,
     [limit],
   );
@@ -178,7 +184,7 @@ const CLOSED_SQL = `('lost','no_response','do_not_contact')`;
 export async function openByCountry(): Promise<{ country: string; n: number }[]> {
   return q<{ country: string; n: number }>(
     `SELECT COALESCE(NULLIF(TRIM(country), ''), 'Unknown') AS country, COUNT(*)::int AS n
-     FROM leads WHERE status NOT IN ${CLOSED_SQL} GROUP BY 1 ORDER BY n DESC, 1`,
+     FROM leads WHERE kind <> 'college' AND status NOT IN ${CLOSED_SQL} GROUP BY 1 ORDER BY n DESC, 1`,
   );
 }
 
@@ -186,6 +192,13 @@ export async function openByCountry(): Promise<{ country: string; n: number }[]>
 export async function nextUp(): Promise<Lead | null> {
   return one<Lead>(
     `SELECT l.*, u.name AS assignee_name FROM leads l LEFT JOIN users u ON u.id = l.assigned_to
-     WHERE l.status = 'drafted' ORDER BY COALESCE(l.fit_score, 0) DESC, l.created_at ASC LIMIT 1`,
+     WHERE l.status = 'drafted' AND l.kind <> 'college' ORDER BY COALESCE(l.fit_score, 0) DESC, l.created_at ASC LIMIT 1`,
+  );
+}
+
+/** Niches that leads have been tagged with, for the filter. */
+export async function nichesList(): Promise<{ niche: string; n: number }[]> {
+  return q<{ niche: string; n: number }>(
+    `SELECT niche, COUNT(*)::int AS n FROM leads WHERE kind <> 'college' AND niche IS NOT NULL AND niche <> '' GROUP BY 1 ORDER BY n DESC, 1`,
   );
 }

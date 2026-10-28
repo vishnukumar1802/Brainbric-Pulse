@@ -129,6 +129,7 @@ export default async function LeadPage({ params }: { params: { id: string } }) {
               <StatusBadge status={lead.status} />
               {isCollege && <TierBadge tier={lead.tier} />}
               <KindBadge kind={lead.kind} />
+              {lead.niche && <span className="text-xs text-ink-500">· {lead.niche}</span>}
               <span className="inline-flex items-center gap-1.5 text-xs text-ink-500">
                 Fit <FitScore score={lead.fit_score} />
               </span>

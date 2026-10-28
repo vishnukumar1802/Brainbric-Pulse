@@ -89,6 +89,10 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS program TEXT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS domain TEXT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS best_time TEXT;
 
+-- The service focus a lead was found under, e.g. "App development" or "SaaS: Facility Management".
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS niche TEXT;
+CREATE INDEX IF NOT EXISTS leads_niche_idx ON leads(niche);
+
 CREATE TABLE IF NOT EXISTS activities (
   id SERIAL PRIMARY KEY,
   lead_id TEXT REFERENCES leads(id) ON DELETE CASCADE,

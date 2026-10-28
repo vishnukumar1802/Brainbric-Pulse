@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { FileText, GraduationCap, LayoutGrid, LogOut, Send, Settings, Target, Users } from 'lucide-react';
+import { Crosshair, FileText, GraduationCap, LayoutGrid, LogOut, Send, Settings, Target, Users } from 'lucide-react';
 import { logoutAction } from '@/app/actions';
 import type { Agent } from '@/lib/agents';
 import type { User } from '@/lib/auth';
@@ -13,7 +13,17 @@ function agentDot(a: Agent) {
   return a.last_run_at ? 'bg-[#247B50]' : 'bg-[#D9D5D1]';
 }
 
-export function SidebarContent({ user, agents, counts }: { user: User; agents: Agent[]; counts: { drafted: number; hot: number; colleges: number } }) {
+export function SidebarContent({
+  user,
+  agents,
+  counts,
+  focus,
+}: {
+  user: User;
+  agents: Agent[];
+  counts: { drafted: number; hot: number; colleges: number };
+  focus: string;
+}) {
   const initials = user.name
     .split(/\s+/)
     .map((p) => p[0])
@@ -26,6 +36,17 @@ export function SidebarContent({ user, agents, counts }: { user: User; agents: A
         <Brand />
       </div>
 
+      <Link
+        href="/focus"
+        className="mb-4 block rounded-md border border-paper-line bg-white px-3 py-2 transition-colors hover:border-ink-400"
+        title="Change what the agents hunt for"
+      >
+        <span className="flex items-center gap-1.5 text-xs text-ink-500">
+          <Crosshair size={12} strokeWidth={2} /> Hunting for
+        </span>
+        <span className="mt-0.5 block truncate text-sm font-medium text-ink-950">{focus}</span>
+      </Link>
+
       <nav className="flex flex-col gap-0.5" aria-label="Main">
         <NavLink href="/" exact>
           <LayoutGrid size={16} strokeWidth={1.75} /> Overview
@@ -36,13 +57,22 @@ export function SidebarContent({ user, agents, counts }: { user: User; agents: A
         <NavLink href="/leads" notWhen="status=drafted">
           <Target size={16} strokeWidth={1.75} /> All leads
         </NavLink>
-        <NavLink href="/colleges" count={counts.colleges}>
-          <GraduationCap size={16} strokeWidth={1.75} /> Colleges
+        <NavLink href="/focus">
+          <Crosshair size={16} strokeWidth={1.75} /> Focus
         </NavLink>
         <NavLink href="/reports">
           <FileText size={16} strokeWidth={1.75} /> Reports
         </NavLink>
       </nav>
+
+      <div className="mt-7">
+        <div className="mb-1.5 px-2.5 text-xs text-ink-500">College programs</div>
+        <nav className="flex flex-col gap-0.5" aria-label="College programs">
+          <NavLink href="/colleges" count={counts.colleges}>
+            <GraduationCap size={16} strokeWidth={1.75} /> Colleges
+          </NavLink>
+        </nav>
+      </div>
 
       <div className="mt-7">
         <div className="mb-1.5 flex items-baseline justify-between px-2.5">

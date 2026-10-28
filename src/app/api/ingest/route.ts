@@ -52,6 +52,7 @@ const LeadIn = z.object({
   program: str,
   domain: str,
   best_time: str,
+  niche: z.string().trim().max(120).nullish(),
 });
 
 const DocIn = z.object({
@@ -86,7 +87,7 @@ const LEAD_COLUMNS = [
   'fit_score', 'approach', 'email_subject', 'email_body', 'whatsapp_message', 'bid_text', 'outlook_link', 'status', 'notes',
   'first_contacted', 'last_touch', 'followups_sent',
   'institution_type', 'tier', 'tier_reason', 'state', 'district', 'university', 'accreditation', 'department',
-  'student_strength', 'program', 'domain', 'best_time',
+  'student_strength', 'program', 'domain', 'best_time', 'niche',
 ] as const;
 
 const DATE_COLUMNS = new Set(['first_contacted', 'last_touch']);

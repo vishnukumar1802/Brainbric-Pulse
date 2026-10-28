@@ -3,20 +3,23 @@ import { SidebarContent } from '@/components/Sidebar';
 import { listAgents } from '@/lib/agents';
 import { requireUser } from '@/lib/auth';
 import { one } from '@/lib/db';
+import { getFocus } from '@/lib/focus';
+import { focusLabel } from '@/lib/services';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  const [agents, counts] = await Promise.all([
+  const [agents, counts, focus] = await Promise.all([
     listAgents(),
     one<{ drafted: number; hot: number; colleges: number }>(
-      `SELECT COUNT(*) FILTER (WHERE status = 'drafted')::int AS drafted,
+      `SELECT COUNT(*) FILTER (WHERE status = 'drafted' AND kind <> 'college')::int AS drafted,
               COUNT(*) FILTER (WHERE status = 'drafted' AND kind = 'college')::int AS colleges,
-              COUNT(*) FILTER (WHERE status IN ('replied','interested','call_booked','proposal'))::int AS hot FROM leads`,
+              COUNT(*) FILTER (WHERE status IN ('replied','interested','call_booked','proposal') AND kind <> 'college')::int AS hot FROM leads`,
     ),
+    getFocus(),
   ]);
-  const sidebar = <SidebarContent user={user} agents={agents} counts={counts ?? { drafted: 0, hot: 0, colleges: 0 }} />;
+  const sidebar = <SidebarContent user={user} agents={agents} counts={counts ?? { drafted: 0, hot: 0, colleges: 0 }} focus={focusLabel(focus)} />;
 
   return (
     <div className="min-h-screen lg:pl-60">
