@@ -39,6 +39,7 @@ const STEP_TEXT: Record<string, string> = {
   found: 'Found a lead',
   writing: 'Writing a draft',
   drafted: 'Saved a draft',
+  mail: 'Brought you mail',
   note: 'Working',
 };
 
@@ -89,7 +90,7 @@ export function OfficeView({ data }: { data: OfficeData }) {
         lastId = Math.max(lastId, e.id);
         sims.g.push(e, replay);
         sims.f.push(e, replay);
-        next[e.agent] = e.step === 'finished' || e.step === 'failed' ? null : e.text || STEP_TEXT[e.step] || 'Working';
+        next[e.agent] = e.step === 'finished' || e.step === 'failed' || e.step === 'mail' ? null : e.text || STEP_TEXT[e.step] || 'Working';
         if (replay && (e.step === 'drafted' || e.step === 'finished' || e.step === 'failed')) changed = true;
       }
       if (Object.keys(next).length) {

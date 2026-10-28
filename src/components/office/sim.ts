@@ -269,6 +269,11 @@ export class OfficeSim {
       case 'drafted':
         a.jobs.push({ kind: 'walk', to: 'mm', carry: true }, { kind: 'stand', dur: 2.2, bubble: { text: text ? `Draft: ${short(text, 22)}` : 'Draft ready', kind: 'work' } });
         break;
+      case 'mail':
+        // Carry the letter to the manager's cabin.
+        a.jobs.push({ kind: 'walk', to: 'cv', carry: true }, { kind: 'stand', dur: 3.2, face: '-y', bubble: { text: text ? `Mail: ${short(text, 26)}` : 'You have mail', kind: 'work' } });
+        a.working = false;
+        break;
       case 'finished':
         a.lastWorkText = null;
         a.jobs.push(...sitHome({ text: text ? `Done: ${short(text, 26)}` : 'Run finished', kind: 'work' }, 4));

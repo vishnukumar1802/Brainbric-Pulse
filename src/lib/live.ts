@@ -6,7 +6,7 @@ import { q } from './db';
  * the rest the portal records on its own: "started" when an agent checks in, and "found", "drafted", "finished"
  * when it sends its results.
  */
-export const LIVE_STEPS = ['started', 'searching', 'found', 'writing', 'drafted', 'finished', 'failed', 'note'] as const;
+export const LIVE_STEPS = ['started', 'searching', 'found', 'writing', 'drafted', 'finished', 'failed', 'note', 'mail'] as const;
 export type LiveStep = (typeof LIVE_STEPS)[number];
 
 export type LiveEvent = { id: number; agent: string; step: LiveStep; text: string | null; created_at: string };

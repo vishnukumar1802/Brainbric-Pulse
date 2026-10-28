@@ -165,6 +165,22 @@ ALTER TABLE proposals ADD COLUMN IF NOT EXISTS views INT NOT NULL DEFAULT 0;
 ALTER TABLE proposals ADD COLUMN IF NOT EXISTS last_viewed_at TIMESTAMPTZ;
 CREATE UNIQUE INDEX IF NOT EXISTS proposals_share_idx ON proposals(share_token);
 
+-- New mail in the admin's mailbox, posted by the Mail Watcher agent. Sender, subject and link only, never the body.
+CREATE TABLE IF NOT EXISTS mail_alerts (
+  id SERIAL PRIMARY KEY,
+  message_id TEXT NOT NULL UNIQUE,
+  from_name TEXT,
+  from_email TEXT,
+  subject TEXT,
+  received_at TIMESTAMPTZ NOT NULL,
+  web_link TEXT,
+  label TEXT,
+  lead_id TEXT,
+  seen BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS mail_alerts_received_idx ON mail_alerts(received_at);
+
 -- Live steps for the moving office (see lib/live.ts). Kept for a few days only.
 CREATE TABLE IF NOT EXISTS agent_events (
   id SERIAL PRIMARY KEY,

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { SESSION_COOKIE, verifySession } from '@/lib/session';
 
 // /p/<code> is a client's proposal link: public, but only for a long random code that the team can switch off.
-const PUBLIC = ['/login', '/api/ingest', '/api/agent-status', '/api/agent-event', '/api/health', '/robots.txt', '/p'];
+const PUBLIC = ['/login', '/api/ingest', '/api/agent-status', '/api/agent-event', '/api/mail', '/api/health', '/robots.txt', '/p'];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

@@ -43,7 +43,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <SenderProvider sender={sender}>
-    <AppShell sidebar={sidebar} mobileNav={<MobileNav>{sidebar}</MobileNav>} initialClosed={cookies().get('pulse_sidebar')?.value === 'closed'}>
+    <AppShell sidebar={sidebar} mobileNav={<MobileNav>{sidebar}</MobileNav>} initialClosed={cookies().get('pulse_sidebar')?.value === 'closed'} mailBell={user.role === 'admin'}>
       {children}
     </AppShell>
     </SenderProvider>

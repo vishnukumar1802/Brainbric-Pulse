@@ -2,17 +2,21 @@
 
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useState } from 'react';
+import { MailBell } from './MailBell';
 
 /** Desktop frame: the sidebar can be closed to give the page (and the office) the full width. Remembered in a cookie. */
 export function AppShell({
   sidebar,
   mobileNav,
   initialClosed,
+  mailBell = false,
   children,
 }: {
   sidebar: React.ReactNode;
   mobileNav: React.ReactNode;
   initialClosed: boolean;
+  /** Admins get the new-mail bell (it is their mailbox). */
+  mailBell?: boolean;
   children: React.ReactNode;
 }) {
   const [closed, setClosed] = useState(initialClosed);
@@ -37,6 +41,7 @@ export function AppShell({
         {closed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
       </button>
       {mobileNav}
+      {mailBell && <MailBell sidebarClosed={closed} />}
       <main
         className={`mx-auto w-full px-4 py-6 sm:px-6 lg:py-8 ${closed ? 'max-w-[1600px] lg:pl-16 lg:pr-10' : 'max-w-[1240px] lg:px-10'}`}
       >
