@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { AgentToggle } from '@/components/AgentToggle';
 import { Card, Empty, KindBadge, PageHeader, StatusBadge } from '@/components/ui';
 import { agentLabel } from '@/lib/agentName';
+import { agentPhoto } from '@/lib/avatars';
 import { agentRuns, docKindLabel, getAgent, listDocs } from '@/lib/agents';
 import { requirePermission } from '@/lib/auth';
 import { fmtAgo, fmtDate, fmtDateTime, fmtNum } from '@/lib/format';
@@ -22,6 +23,18 @@ export default async function AgentPage({ params }: { params: { slug: string } }
       <Link href="/agents" className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-ink-500 hover:text-ink-900">
         <ArrowLeft size={15} /> AI team
       </Link>
+      {agentPhoto(agent.slug, 'card') && (
+        <div className="card mb-5 flex items-center gap-5 p-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={agentPhoto(agent.slug, 'card')!} alt={`Portrait of ${agent.nickname ?? agent.name}`} width={96} height={128} className="h-32 w-24 rounded-lg object-cover" />
+          <div className="min-w-0">
+            <div className="text-xs font-medium text-ink-500">Brainbric AI team</div>
+            <div className="text-xl font-semibold tracking-[-0.01em] text-ink-950">{agent.nickname ?? agent.name}</div>
+            <div className="text-sm text-ink-700">{agent.name}</div>
+            <div className={`mt-2 text-xs font-medium ${agent.paused ? 'text-ink-500' : 'text-[#247B50]'}`}>{agent.paused ? 'Paused, resting in the pantry' : 'On duty'}</div>
+          </div>
+        </div>
+      )}
       <PageHeader
         title={agentLabel(agent)}
         subtitle={

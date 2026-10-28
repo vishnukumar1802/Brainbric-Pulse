@@ -205,6 +205,15 @@ INSERT INTO agents (slug, name, description, schedule, sort) VALUES
   ('competitor-watch', 'Competitor Watch', 'Competing agencies, their pricing and where Brainbric can win.', 'Wednesday 9:00 AM', 60),
   ('college-outreach', 'College Outreach', 'Finds Tamil Nadu colleges, sorts them into tiers and drafts workshop proposals for the right department.', 'Weekdays 10:00 AM', 15)
 ON CONFLICT (slug) DO NOTHING;
+
+-- Once: give the agents the names that go with their portraits (lib/avatars.ts). Names set by the admin are kept,
+-- and a name cleared later is not put back, because this runs only until the flag is written.
+UPDATE agents SET nickname = v.name
+  FROM (VALUES ('lead-hunter','Arjun'), ('requirement-hunter','Priya'), ('inbox-assistant','Karthik'), ('college-outreach','Meena'),
+               ('daily-brief','Divya'), ('social-content','Rahul'), ('competitor-watch','Sneha'), ('mail-watcher','Vikram')) AS v(slug, name)
+  WHERE agents.slug = v.slug AND agents.nickname IS NULL
+    AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'agent_names_v1');
+INSERT INTO settings (key, value) VALUES ('agent_names_v1', 'done') ON CONFLICT (key) DO NOTHING;
 `;
 
 const globalForDb = globalThis as unknown as { pulseDb?: Promise<Driver> };

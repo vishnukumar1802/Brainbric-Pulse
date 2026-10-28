@@ -3,6 +3,8 @@
 import { Bell, BellRing, ExternalLink, Mail, X } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { agentPhoto } from '@/lib/avatars';
+import { AgentFace } from './AgentFace';
 
 type Alert = {
   id: number;
@@ -220,9 +222,13 @@ export function MailBell({ sidebarClosed }: { sidebarClosed: boolean }) {
         {toasts.map((a) => (
           <div key={a.id} className="pointer-events-auto rounded-xl border border-paper-line bg-white p-3.5 shadow-[0_12px_32px_rgba(20,18,21,0.18)]">
             <div className="flex items-start gap-2.5">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-flame-tint text-flame-ink">
-                <Mail size={15} />
-              </span>
+              {agentPhoto('mail-watcher') ? (
+                <AgentFace slug="mail-watcher" name="Vikram" size={36} />
+              ) : (
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-flame-tint text-flame-ink">
+                  <Mail size={15} />
+                </span>
+              )}
               <div className="min-w-0 flex-1">
                 <div className="text-[11px] font-medium text-ink-500">New mail · {ago(a.received_at)}</div>
                 <div className="truncate text-sm font-semibold text-ink-950">{who(a)}</div>

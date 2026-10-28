@@ -38,7 +38,7 @@ export function istHour(d = new Date()): number {
 
 export async function ensureMailAgent(): Promise<void> {
   await q(
-    `INSERT INTO agents (slug, name, description, schedule, sort) VALUES ($1, 'Mail Watcher', $2, 'Every 2 min, 9 AM to 9 PM', 35)
+    `INSERT INTO agents (slug, name, nickname, description, schedule, sort) VALUES ($1, 'Mail Watcher', 'Vikram', $2, 'Every 2 min, 9 AM to 9 PM', 35)
      ON CONFLICT (slug) DO NOTHING`,
     [MAIL_AGENT, 'Watches your Outlook inbox and tells you the moment outside mail arrives. Reads sender and subject only.'],
   );

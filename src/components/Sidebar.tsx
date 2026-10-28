@@ -14,14 +14,15 @@ import { logoutAction } from "@/app/actions";
 import { can } from "@/lib/permissions";
 import type { Agent } from "@/lib/agents";
 import type { User } from "@/lib/auth";
+import { AgentFace } from "./AgentFace";
 import { Brand } from "./Brand";
 import { NavLink } from "./NavLink";
 
 function agentDot(a: Agent) {
-  if (a.paused) return "bg-transparent ring-1 ring-inset ring-ink-400";
-  if (a.last_status === "error") return "bg-[#C4242A]";
-  if (a.last_status === "warning") return "bg-flame-amber";
-  return a.last_run_at ? "bg-[#247B50]" : "bg-[#D9D5D1]";
+  if (a.paused) return "#B4B2A9";
+  if (a.last_status === "error") return "#C4242A";
+  if (a.last_status === "warning") return "#FCB216";
+  return a.last_run_at ? "#247B50" : "#D9D5D1";
 }
 
 export function SidebarContent({
@@ -115,10 +116,7 @@ export function SidebarContent({
           <nav className="flex flex-col gap-0.5" aria-label="AI agents">
             {agents.map((a) => (
               <NavLink key={a.slug} href={`/agents/${a.slug}`} sub>
-                <span
-                  className={`h-[7px] w-[7px] shrink-0 rounded-full ${agentDot(a)}`}
-                  aria-hidden
-                />
+                <AgentFace slug={a.slug} name={a.nickname ?? a.name} size={22} ring={agentDot(a)} className={a.paused ? "opacity-60" : ""} />
                 <span className={`truncate ${a.paused ? "text-ink-400" : ""}`} title={a.nickname ? a.name : undefined}>
                   {a.nickname ?? a.name}
                 </span>

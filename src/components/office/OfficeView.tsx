@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import type { FloorKey, OfficeData, OfficePerson } from '@/lib/office';
+import { AgentFace } from '../AgentFace';
 import { AgentToggle, AllAgentsToggle } from '../AgentToggle';
 import { drawOffice, LH, LW, personColor, type Hit } from './scene';
 import { OfficeSim, type LiveStepEvent } from './sim';
@@ -321,9 +322,7 @@ export function OfficeView({ data }: { data: OfficeData }) {
         </div>
         {picked && (
           <div className="absolute bottom-3 left-4 flex max-w-[calc(100%-2rem)] items-center gap-3 rounded-xl border border-paper-line bg-white px-3 py-2.5 shadow-[0_8px_24px_rgba(20,18,21,0.12)]">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xs font-bold text-white" style={{ background: personColor(picked) }}>
-              {picked.name.slice(0, 2).toUpperCase()}
-            </span>
+            <AgentFace slug={picked.slug} name={picked.name} size={44} color={personColor(picked)} ring={personColor(picked)} />
             <span className="min-w-0">
               <span className="block truncate text-sm font-semibold text-ink-950">{picked.name}</span>
               <span className="block truncate text-xs text-ink-500">
@@ -379,9 +378,7 @@ export function OfficeView({ data }: { data: OfficeData }) {
               className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
               title="Show in the office"
             >
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-xs font-bold text-white" style={{ background: personColor(p) }}>
-                {p.name.slice(0, 2).toUpperCase()}
-              </span>
+              <AgentFace slug={p.slug} name={p.name} size={38} color={personColor(p)} ring={personColor(p)} />
               <span className="min-w-0">
                 <span className="block truncate text-[13.5px] font-semibold text-ink-950">{p.name}</span>
                 <span className="block truncate text-[11.5px] text-ink-500">{p.role}</span>

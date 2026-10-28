@@ -1,6 +1,7 @@
 // Draws the isometric office on a 2D canvas. Plain functions, no React: the OfficeView component calls drawOffice
 // every animation frame with the people from the simulation (sim.ts) and gets back the clickable areas.
 import type { FloorKey, OfficePerson } from '@/lib/office';
+import { AGENT_AVATARS, type HairStyle, type Look } from '@/lib/avatars';
 import { DESKS, PANTRY_SEATS, type Actor, type BubbleKind, type Face } from './sim';
 
 export const LW = 900;
@@ -46,14 +47,20 @@ export function personColor(p: OfficePerson): string {
 
 const HAIR = ['#2a1d16', '#1b1b1b', '#3b2416', '#24170f', '#1d1410', '#3a2618', '#4a3020', '#2e1f14'];
 const SHIRTS = ['#2f7fd1', '#d0543a', '#e0a526', '#8a4fd0', '#2b8a7e', '#7a6fd0', '#5a9e4b', '#c4497a', '#c98a2b', '#24324a'];
+const SKINS = ['#C68A5E', '#A9744F', '#D9A47A', '#B97E55', '#E0B48C', '#9E6A45'];
+const STYLES: HairStyle[] = ['short', 'short', 'long', 'curly', 'bob', 'ponytail'];
 function hash(s: string): number {
   let h = 7;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return h;
 }
-function looks(id: string) {
-  const h = hash(id);
-  return { hair: HAIR[h % HAIR.length], shirt: SHIRTS[(h >>> 4) % SHIRTS.length] };
+/** Agents wear the outfit from their portrait; everyone else gets a steady look picked from their id. */
+function looks(p: OfficePerson): Look {
+  const known = p.slug ? AGENT_AVATARS[p.slug]?.look : undefined;
+  if (known) return known;
+  const h = hash(p.id);
+  const shirt = SHIRTS[(h >>> 4) % SHIRTS.length];
+  return { skin: SKINS[h % SKINS.length], hair: HAIR[(h >>> 8) % HAIR.length], style: STYLES[(h >>> 12) % STYLES.length], top: shirt, inner: shirt, pants: '#2f3747' };
 }
 
 
@@ -161,7 +168,7 @@ export function drawOffice(ctx: Ctx, scale: number, s: SceneInput): Hit[] {
    * (one forward, one back, the moving foot lifted), the arms swing the other way and the body bobs with each step.
    */
   const person = (x: number, y: number, z: number, p: OfficePerson, face: Face, seated = false, gait?: { phase: number; amt: number }): Pt => {
-    const lk = looks(p.id);
+    const lk = looks(p);
     const alongX = face === '+x' || face === '-x';
     if (s.selected === p.id) {
       c.strokeStyle = '#FCB216';
@@ -188,33 +195,67 @@ export function drawOffice(ctx: Ctx, scale: number, s: SceneInput): Hit[] {
       legs.forEach(([ox, oy], i) => {
         const k = i === 0 ? sw : -sw;
         const lift = Math.max(0, k) * 0.05;
-        box(x + ox + fx0 * k * 0.1, y + oy + fy0 * k * 0.1, lift, 0.12, 0.12, 0.45 - lift + bob, '#2f3747');
+        box(x + ox + fx0 * k * 0.1, y + oy + fy0 * k * 0.1, lift, 0.12, 0.12, 0.45 - lift + bob, lk.pants);
       });
     }
     const b = z + (seated ? 0 : 0.45) + bob;
-    // Torso and arms, turned with the body.
+    // Torso and arms in the outer layer (jacket, blazer, shirt), with what is underneath showing down the front.
     if (alongX) {
-      box(x + 0.04, y - 0.04, b, 0.26, 0.34, 0.5, lk.shirt);
-      box(x + 0.09 - fx0 * sw * 0.08, y - 0.11, b + 0.12, 0.16, 0.07, 0.34, lk.shirt);
-      box(x + 0.09 + fx0 * sw * 0.08, y + 0.3, b + 0.12, 0.16, 0.07, 0.34, lk.shirt);
+      box(x + 0.04, y - 0.04, b, 0.26, 0.34, 0.5, lk.top);
+      if (lk.inner !== lk.top && face === '+x') fx(x + 0.3, y + 0.08, y + 0.22, b + 0.06, b + 0.49, lk.inner);
+      box(x + 0.09 - fx0 * sw * 0.08, y - 0.11, b + 0.12, 0.16, 0.07, 0.34, lk.top);
+      box(x + 0.09 + fx0 * sw * 0.08, y + 0.3, b + 0.12, 0.16, 0.07, 0.34, lk.top);
     } else {
-      box(x, y, b, 0.34, 0.26, 0.5, lk.shirt);
-      box(x - 0.07, y + 0.05 - fy0 * sw * 0.08, b + 0.12, 0.07, 0.16, 0.34, lk.shirt);
-      box(x + 0.34, y + 0.05 + fy0 * sw * 0.08, b + 0.12, 0.07, 0.16, 0.34, lk.shirt);
+      box(x, y, b, 0.34, 0.26, 0.5, lk.top);
+      if (lk.inner !== lk.top && face === '+y') fy(x + 0.11, x + 0.23, y + 0.26, b + 0.06, b + 0.49, lk.inner);
+      box(x - 0.07, y + 0.05 - fy0 * sw * 0.08, b + 0.12, 0.07, 0.16, 0.34, lk.top);
+      box(x + 0.34, y + 0.05 + fy0 * sw * 0.08, b + 0.12, 0.07, 0.16, 0.34, lk.top);
     }
     const hz = b + 0.5;
-    box(x + 0.03, y, hz, 0.28, 0.26, 0.28, '#f1c7a0');
-    box(x + 0.01, y - 0.02, hz + 0.22, 0.32, 0.3, 0.1, lk.hair);
-    // Eyes on the visible face, or the back of the head when walking away.
+    // Long hair, a bob or a ponytail hangs at the back of the head: drawn before the head when the face is towards
+    // us (so the head covers it), after it when they face away.
+    const towards = face === '+y' || face === '+x';
+    const backHair = () => {
+      const len = lk.style === 'long' ? 0.5 : lk.style === 'bob' ? 0.3 : lk.style === 'ponytail' ? 0.28 : 0;
+      if (!len) return;
+      const thin = lk.style === 'ponytail';
+      const zb = hz + 0.28 - len;
+      if (alongX) {
+        const bx = face === '+x' ? x - 0.03 : x + 0.27;
+        box(bx, y + (thin ? 0.09 : 0.0), zb, 0.08, thin ? 0.08 : 0.26, len, lk.hair);
+      } else {
+        const by = face === '+y' ? y - 0.05 : y + 0.23;
+        box(x + (thin ? 0.13 : 0.02), by, zb, thin ? 0.08 : 0.3, 0.08, len, lk.hair);
+      }
+    };
+    if (towards) backHair();
+    box(x + 0.03, y, hz, 0.28, 0.26, 0.28, lk.skin);
+    if (!towards) backHair();
+    // Hair on top: curly hair is fuller; a bun sits at the back.
+    if (lk.style === 'curly') box(x - 0.01, y - 0.04, hz + 0.2, 0.36, 0.34, 0.16, lk.hair);
+    else box(x + 0.01, y - 0.02, hz + 0.22, 0.32, 0.3, 0.1, lk.hair);
+    if (lk.style === 'bun') {
+      const [bx, by] = alongX ? [face === '+x' ? x - 0.04 : x + 0.24, y + 0.08] : [x + 0.11, face === '+y' ? y - 0.06 : y + 0.2];
+      box(bx, by, hz + 0.22, 0.12, 0.12, 0.12, lk.hair);
+    }
+    if (lk.headset) {
+      box(x - 0.005, y + 0.08, hz + 0.08, 0.04, 0.1, 0.12, '#222');
+      box(x + 0.305, y + 0.08, hz + 0.08, 0.04, 0.1, 0.12, '#222');
+    }
+    // Face: eyes (and glasses or a beard) on the side facing us, or the back of the head when walking away.
     if (face === '+y') {
-      fy(x + 0.08, x + 0.12, y + 0.26, hz + 0.12, hz + 0.17, '#2a2a2a');
-      fy(x + 0.21, x + 0.25, y + 0.26, hz + 0.12, hz + 0.17, '#2a2a2a');
+      if (lk.beard) fy(x + 0.06, x + 0.28, y + 0.26, hz + 0.01, hz + 0.09, lk.hair);
+      if (lk.glasses) fy(x + 0.05, x + 0.29, y + 0.261, hz + 0.1, hz + 0.19, '#1c1c1c');
+      fy(x + 0.08, x + 0.12, y + 0.262, hz + 0.12, hz + 0.17, lk.glasses ? '#f4f4f4' : '#2a2a2a');
+      fy(x + 0.21, x + 0.25, y + 0.262, hz + 0.12, hz + 0.17, lk.glasses ? '#f4f4f4' : '#2a2a2a');
     } else if (face === '+x') {
-      fx(x + 0.31, y + 0.05, y + 0.09, hz + 0.12, hz + 0.17, '#2a2a2a');
-      fx(x + 0.31, y + 0.17, y + 0.21, hz + 0.12, hz + 0.17, '#2a2a2a');
+      if (lk.beard) fx(x + 0.31, y + 0.03, y + 0.23, hz + 0.01, hz + 0.09, lk.hair);
+      if (lk.glasses) fx(x + 0.311, y + 0.02, y + 0.24, hz + 0.1, hz + 0.19, '#1c1c1c');
+      fx(x + 0.312, y + 0.05, y + 0.09, hz + 0.12, hz + 0.17, lk.glasses ? '#f4f4f4' : '#2a2a2a');
+      fx(x + 0.312, y + 0.17, y + 0.21, hz + 0.12, hz + 0.17, lk.glasses ? '#f4f4f4' : '#2a2a2a');
     } else if (face === '-x') {
-      box(x + 0.23, y + 0.0, hz + 0.04, 0.09, 0.26, 0.2, lk.hair);
-    } else {
+      if (lk.style === 'short' || lk.style === 'curly' || lk.style === 'bun') box(x + 0.23, y + 0.0, hz + 0.04, 0.09, 0.26, 0.2, lk.hair);
+    } else if (lk.style === 'short' || lk.style === 'curly' || lk.style === 'bun') {
       box(x + 0.02, y + 0.2, hz + 0.04, 0.3, 0.08, 0.2, lk.hair);
     }
     return P(x + 0.17, y + 0.13, hz + 0.78);

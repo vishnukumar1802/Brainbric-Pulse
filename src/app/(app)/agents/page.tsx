@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AgentFace } from '@/components/AgentFace';
 import { AgentNameForm } from '@/components/AgentNameForm';
 import { AgentToggle, AllAgentsToggle } from '@/components/AgentToggle';
 import { Card, PageHeader } from '@/components/ui';
@@ -43,12 +44,17 @@ export default async function AgentsPage() {
           <tbody className="divide-y divide-paper-rule">
             {agents.map((a) => (
               <tr key={a.slug} className="align-top hover:bg-paper/50">
-                <td className="max-w-[26rem] px-5 py-3">
-                  <Link href={`/agents/${a.slug}`} className={`font-medium hover:underline ${a.paused ? 'text-ink-500' : 'text-ink-950'}`}>
-                    {a.nickname ?? a.name}
-                  </Link>
-                  {a.nickname && <span className="ml-1.5 text-xs text-ink-500">{a.name}</span>}
-                  <p className="mt-0.5 line-clamp-2 text-xs text-ink-500">{a.description}</p>
+                <td className="max-w-[28rem] px-5 py-3">
+                  <div className="flex gap-3">
+                    <AgentFace slug={a.slug} name={a.nickname ?? a.name} size={40} className={a.paused ? 'opacity-60' : ''} />
+                    <div className="min-w-0">
+                      <Link href={`/agents/${a.slug}`} className={`font-medium hover:underline ${a.paused ? 'text-ink-500' : 'text-ink-950'}`}>
+                        {a.nickname ?? a.name}
+                      </Link>
+                      {a.nickname && <span className="ml-1.5 text-xs text-ink-500">{a.name}</span>}
+                      <p className="mt-0.5 line-clamp-2 text-xs text-ink-500">{a.description}</p>
+                    </div>
+                  </div>
                 </td>
                 {canRename && (
                   <td className="px-3 py-2.5">
