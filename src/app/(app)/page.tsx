@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Building2, LayoutList } from 'lucide-react';
 import { Card, Empty, FitScore, KpiStrip, PageHeader, StatusBadge, ViewAll } from '@/components/ui';
 import { AgentToggle, AllAgentsToggle } from '@/components/AgentToggle';
 import { LeadQuickActions } from '@/components/LeadActions';
@@ -8,10 +8,12 @@ import { PipelineFlow } from '@/components/PipelineFlow';
 import { ActivityFeed, CompanyMark, leadName, MarketSplit, NextUp, RunStrip } from '@/components/rich';
 import { agentLabel } from '@/lib/agentName';
 import { listAgents, listDocs, recentRunsByAgent } from '@/lib/agents';
-import { requirePermission } from '@/lib/auth';
+import { requirePermission, type User } from '@/lib/auth';
 import { can } from '@/lib/permissions';
 import { getSetting } from '@/lib/db';
 import { fmtAgo, fmtDate, fmtNum } from '@/lib/format';
+import { getOffice } from '@/lib/office';
+import { OfficeView } from '@/components/office/OfficeView';
 import { listLeads, nextUp, openByCountry, pipelineStats, recentActivity, teamActivity } from '@/lib/leads';
 
 export const metadata = { title: 'Overview' };
@@ -20,8 +22,9 @@ function plural(n: number, one: string, many: string) {
   return `${fmtNum(n)} ${n === 1 ? one : many}`;
 }
 
-export default async function Overview() {
+export default async function Overview({ searchParams }: { searchParams: { view?: string } }) {
   const user = await requirePermission('leads');
+  if (searchParams.view !== 'classic') return <OfficeOverview user={user} />;
   const [stats, next, ready, hot, agents, runs, feed, countries, briefs, myWhatsapp, team] = await Promise.all([
     pipelineStats(),
     nextUp(),
@@ -60,11 +63,16 @@ export default async function Overview() {
         subtitle={subtitle}
         meta={new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })}
         actions={
-          t.drafted ? (
-            <Link href="/leads?status=drafted" className="btn-primary">
-              Review {plural(t.drafted, 'draft', 'drafts')} <ArrowRight size={15} />
+          <>
+            <Link href="/" className="btn-ghost">
+              <Building2 size={15} /> Office view
             </Link>
-          ) : undefined
+            {t.drafted ? (
+              <Link href="/leads?status=drafted" className="btn-primary">
+                Review {plural(t.drafted, 'draft', 'drafts')} <ArrowRight size={15} />
+              </Link>
+            ) : null}
+          </>
         }
       />
 
@@ -276,6 +284,66 @@ export default async function Overview() {
           <Empty title="No brief yet">The Daily Brief agent writes one every morning.</Empty>
         )}
       </Card>
+    </>
+  );
+}
+
+/** The default Overview: the live 3D office, then what happened and the team's points. */
+async function OfficeOverview({ user }: { user: User }) {
+  const [office, stats, feed, agents] = await Promise.all([getOffice(user), pipelineStats(), recentActivity(6), listAgents()]);
+  const t = stats.totals ?? { total: 0, cold: 0, requirement: 0, drafted: 0, hot: 0, contacted: 0, won: 0, week: 0 };
+  const working = agents.filter((a) => !a.paused).length;
+  const failing = agents.filter((a) => !a.paused && a.last_status === 'error').length;
+  const subtitle = [
+    `${plural(working, 'agent', 'agents')} at work${agents.length > working ? `, ${fmtNum(agents.length - working)} paused` : ''}`,
+    failing ? `${plural(failing, 'agent', 'agents')} failed on the last run` : null,
+    t.hot ? `${plural(t.hot, 'lead', 'leads')} in talks` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  return (
+    <>
+      <PageHeader
+        title="Overview"
+        subtitle={subtitle}
+        meta={new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })}
+        actions={
+          <>
+            <Link href="/?view=classic" className="btn-ghost">
+              <LayoutList size={15} /> Classic view
+            </Link>
+            {t.drafted ? (
+              <Link href="/leads?status=drafted" className="btn-primary">
+                Review {plural(t.drafted, 'draft', 'drafts')} <ArrowRight size={15} />
+              </Link>
+            ) : null}
+          </>
+        }
+      />
+
+      <OfficeView data={office} />
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:items-start">
+        <Card flush title="Latest activity" note="What the agents and your team did.">
+          <ActivityFeed items={feed} />
+        </Card>
+        <Card title="Team score this week" note="+10 an email, +20 a follow-up, +30 a proposal sent, +50 when a client opens a proposal, +200 a win.">
+          {office.scores.length ? (
+            <ol className="flex flex-col">
+              {office.scores.map((s, i) => (
+                <li key={s.id} className="flex items-center gap-3 border-t border-paper-rule py-2 text-sm first:border-t-0">
+                  <span className="num w-4 text-xs text-ink-400">{i + 1}</span>
+                  <span className={`min-w-0 flex-1 truncate ${s.isYou ? 'font-semibold text-ink-950' : 'text-ink-900'}`}>{s.name}</span>
+                  <span className="num font-semibold text-ink-950">{fmtNum(s.xp)} XP</span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="text-sm text-ink-500">Points appear as the team sends emails.</p>
+          )}
+        </Card>
+      </div>
     </>
   );
 }

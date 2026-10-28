@@ -1,4 +1,5 @@
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
+import { AppShell } from '@/components/AppShell';
 import { MobileNav } from '@/components/MobileNav';
 import { SenderProvider } from '@/components/SenderContext';
 import { SidebarContent } from '@/components/Sidebar';
@@ -42,11 +43,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <SenderProvider sender={sender}>
-    <div className="min-h-screen lg:pl-60">
-      <aside className="fixed inset-y-0 left-0 hidden w-60 overflow-y-auto border-r border-paper-line bg-paper lg:block">{sidebar}</aside>
-      <MobileNav>{sidebar}</MobileNav>
-      <main className="mx-auto w-full max-w-[1240px] px-4 py-6 sm:px-6 lg:px-10 lg:py-8">{children}</main>
-    </div>
+    <AppShell sidebar={sidebar} mobileNav={<MobileNav>{sidebar}</MobileNav>} initialClosed={cookies().get('pulse_sidebar')?.value === 'closed'}>
+      {children}
+    </AppShell>
     </SenderProvider>
   );
 }
