@@ -394,7 +394,7 @@ export async function saveProposalAction(_: FormState, form: FormData): Promise<
   }
   const sections = existing.sections.map((s) => ({ ...s, body: String(form.get(`section_${s.key}`) ?? s.body).trim() }));
   await q(
-    `UPDATE proposals SET title = $2, sections = $3, currency = $4, price_min = $5, price_max = $6, monthly_min = $7, monthly_max = $8, updated_at = now()
+    `UPDATE proposals SET title = $2, sections = $3::text::jsonb, currency = $4, price_min = $5, price_max = $6, monthly_min = $7, monthly_max = $8, updated_at = now()
      WHERE id = $1`,
     [d.id, d.title, JSON.stringify(sections), d.currency, num(d.price_min), num(d.price_max), num(d.monthly_min), num(d.monthly_max)],
   );

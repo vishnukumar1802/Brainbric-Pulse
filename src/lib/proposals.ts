@@ -39,18 +39,32 @@ export async function getPriceGuide(): Promise<{ rows: PriceRow[]; terms: string
   return { rows, terms: terms ?? DEFAULT_PRICE_TERMS };
 }
 
+/** Some early rows were saved as a JSON string instead of an array; read both. */
+function normalize(p: Proposal): Proposal {
+  let sections: unknown = p.sections;
+  for (let i = 0; i < 2 && typeof sections === 'string'; i++) {
+    try {
+      sections = JSON.parse(sections);
+    } catch {
+      sections = [];
+    }
+  }
+  return { ...p, sections: Array.isArray(sections) ? (sections as Section[]) : [] };
+}
+
 export async function listProposals(leadId: string): Promise<Proposal[]> {
-  return q<Proposal>('SELECT * FROM proposals WHERE lead_id = $1 ORDER BY created_at DESC', [leadId]);
+  return (await q<Proposal>('SELECT * FROM proposals WHERE lead_id = $1 ORDER BY created_at DESC', [leadId])).map(normalize);
 }
 
 export async function getProposal(id: number): Promise<Proposal | null> {
-  return one<Proposal>('SELECT * FROM proposals WHERE id = $1', [id]);
+  const p = await one<Proposal>('SELECT * FROM proposals WHERE id = $1', [id]);
+  return p ? normalize(p) : null;
 }
 
 export async function insertProposal(p: Omit<Proposal, 'id' | 'status' | 'created_at' | 'updated_at'>): Promise<number> {
   const row = await one<{ id: number }>(
     `INSERT INTO proposals (lead_id, kind, title, sections, price_min, price_max, monthly_min, monthly_max, currency, source, prepared_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+     VALUES ($1, $2, $3, $4::text::jsonb, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
     [p.lead_id, p.kind, p.title, JSON.stringify(p.sections), p.price_min, p.price_max, p.monthly_min, p.monthly_max, p.currency, p.source, p.prepared_by],
   );
   return row!.id;

@@ -254,7 +254,7 @@ export async function POST(req: Request) {
     }));
     await q(
       `INSERT INTO proposals (lead_id, kind, title, sections, price_min, price_max, monthly_min, monthly_max, currency, source, prepared_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'agent', $10)`,
+       VALUES ($1, $2, $3, $4::text::jsonb, $5, $6, $7, $8, $9, 'agent', $10)`,
       [
         lead.id,
         lead.kind === 'college' ? 'college' : 'software',
@@ -273,7 +273,7 @@ export async function POST(req: Request) {
   }
 
   if (p.run) {
-    await q('INSERT INTO agent_runs (agent, status, summary, stats) VALUES ($1, $2, $3, $4)', [
+    await q('INSERT INTO agent_runs (agent, status, summary, stats) VALUES ($1, $2, $3, $4::text::jsonb)', [
       p.agent,
       p.run.status,
       p.run.summary ?? null,

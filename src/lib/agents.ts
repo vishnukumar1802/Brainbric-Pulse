@@ -53,7 +53,16 @@ export async function getAgent(slug: string): Promise<Agent | null> {
 }
 
 export async function agentRuns(slug: string, limit = 30): Promise<AgentRun[]> {
-  return q<AgentRun>('SELECT * FROM agent_runs WHERE agent = $1 ORDER BY created_at DESC LIMIT $2', [slug, limit]);
+  const rows = await q<AgentRun>('SELECT * FROM agent_runs WHERE agent = $1 ORDER BY created_at DESC LIMIT $2', [slug, limit]);
+  // Older rows may hold the stats as a JSON string; parse those back into an object.
+  return rows.map((r) => {
+    if (typeof r.stats !== 'string') return r;
+    try {
+      return { ...r, stats: JSON.parse(r.stats) as Record<string, unknown> };
+    } catch {
+      return { ...r, stats: {} };
+    }
+  });
 }
 
 export async function listDocs(filter: { kind?: string; agent?: string } = {}, limit = 60): Promise<Doc[]> {
