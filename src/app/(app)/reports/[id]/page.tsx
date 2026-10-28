@@ -5,13 +5,13 @@ import { CopyButton } from '@/components/LeadActions';
 import { Markdown } from '@/components/Markdown';
 import { PageHeader } from '@/components/ui';
 import { docKindLabel, getAgent, getDoc } from '@/lib/agents';
-import { requireUser } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
 import { fmtDate, fmtDateTime } from '@/lib/format';
 
 export const metadata = { title: 'Report' };
 
 export default async function ReportPage({ params }: { params: { id: string } }) {
-  await requireUser();
+  await requirePermission('reports');
   const doc = await getDoc(decodeURIComponent(params.id));
   if (!doc) notFound();
   const agent = doc.agent ? await getAgent(doc.agent) : null;

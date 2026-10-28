@@ -15,6 +15,8 @@ import {
 } from "@/components/ui";
 import { getAgent } from "@/lib/agents";
 import { requireUser } from "@/lib/auth";
+import { can, homeFor } from "@/lib/permissions";
+import { redirect } from "next/navigation";
 import { getSetting, q } from "@/lib/db";
 import {
   estValue,
@@ -93,10 +95,11 @@ function defaultApproach(
 }
 
 export default async function LeadPage({ params }: { params: { id: string } }) {
-  await requireUser();
+  const me = await requireUser();
   const id = decodeURIComponent(params.id);
   const lead = await getLead(id);
   if (!lead) notFound();
+  if (!can(me, lead.kind === "college" ? "colleges" : "leads")) redirect(homeFor(me));
   const [activities, users, agent, myWhatsapp] = await Promise.all([
     leadActivities(id),
     q<{ id: number; name: string }>(

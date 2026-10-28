@@ -20,6 +20,18 @@ CREATE TABLE IF NOT EXISTS users (
   last_login TIMESTAMPTZ
 );
 
+-- Sign-in is by User ID. Email is optional contact info. Permissions are a comma list (see lib/permissions.ts).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions TEXT NOT NULL DEFAULT 'leads,reports';
+ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+UPDATE users SET username = 'admin'
+  WHERE username IS NULL
+    AND id = (SELECT MIN(id) FROM users WHERE role = 'admin')
+    AND NOT EXISTS (SELECT 1 FROM users WHERE lower(username) = 'admin');
+UPDATE users SET username = lower(regexp_replace(split_part(COALESCE(email, 'user'), '@', 1), '[^a-zA-Z0-9._-]', '', 'g')) || '-' || id
+  WHERE username IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS users_username_idx ON users (lower(username));
+
 CREATE TABLE IF NOT EXISTS agents (
   slug TEXT PRIMARY KEY,
   name TEXT NOT NULL,

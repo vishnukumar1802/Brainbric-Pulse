@@ -7,7 +7,8 @@ import { Markdown } from '@/components/Markdown';
 import { PipelineFlow } from '@/components/PipelineFlow';
 import { ActivityFeed, CompanyMark, leadName, MarketSplit, NextUp, RunStrip } from '@/components/rich';
 import { listAgents, listDocs, recentRunsByAgent } from '@/lib/agents';
-import { requireUser } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
+import { can } from '@/lib/permissions';
 import { getSetting } from '@/lib/db';
 import { fmtAgo, fmtDate, fmtNum } from '@/lib/format';
 import { listLeads, nextUp, openByCountry, pipelineStats, recentActivity } from '@/lib/leads';
@@ -19,7 +20,7 @@ function plural(n: number, one: string, many: string) {
 }
 
 export default async function Overview() {
-  const user = await requireUser();
+  const user = await requirePermission('leads');
   const [stats, next, ready, hot, agents, runs, feed, countries, briefs, myWhatsapp] = await Promise.all([
     pipelineStats(),
     nextUp(),
@@ -37,7 +38,7 @@ export default async function Overview() {
   const brief = briefs[0];
   const paused = agents.filter((a) => a.paused);
   const failing = agents.filter((a) => !a.paused && a.last_status === 'error');
-  const isAdmin = user.role === 'admin';
+  const canAgents = can(user, 'agents');
   // The queue under Next up skips the lead already shown in it.
   const queue = ready.filter((l) => l.id !== next?.id).slice(0, 6);
 
@@ -130,7 +131,7 @@ export default async function Overview() {
               ? `${fmtNum(agents.length - paused.length)} of ${fmtNum(agents.length)} running. Ticks are the last 14 runs.`
               : `All ${fmtNum(agents.length)} running. Ticks are the last 14 runs.`
           }
-          action={isAdmin ? <AllAgentsToggle anyRunning={agents.some((a) => !a.paused)} anyPaused={paused.length > 0} /> : undefined}
+          action={canAgents ? <AllAgentsToggle anyRunning={agents.some((a) => !a.paused)} anyPaused={paused.length > 0} /> : undefined}
         >
           <ul className="border-t border-paper-line">
             {agents.map((a) => (
@@ -147,7 +148,7 @@ export default async function Overview() {
                     <span className="truncate text-xs text-ink-500">{a.schedule || 'On demand'}</span>
                   </div>
                 </Link>
-                {isAdmin && <AgentToggle slug={a.slug} paused={a.paused} name={a.name} />}
+                {canAgents && <AgentToggle slug={a.slug} paused={a.paused} name={a.name} />}
               </li>
             ))}
           </ul>

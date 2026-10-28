@@ -1,19 +1,20 @@
 import Link from 'next/link';
 import { Card, PageHeader } from '@/components/ui';
-import { requireUser } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
 import { focusHistory, getFocus } from '@/lib/focus';
 import { fmtAgo, fmtDateTime, fmtNum } from '@/lib/format';
 import { nichesList } from '@/lib/leads';
+import { can } from '@/lib/permissions';
 import { focusLabel, serviceInfo } from '@/lib/services';
 import { FocusForm } from './FocusForm';
 
 export const metadata = { title: 'Focus' };
 
 export default async function FocusPage() {
-  const user = await requireUser();
+  const user = await requirePermission('leads');
   const [focus, history, niches] = await Promise.all([getFocus(), focusHistory(), nichesList()]);
   const s = serviceInfo(focus.service);
-  const isAdmin = user.role === 'admin';
+  const canEdit = can(user, 'focus');
 
   return (
     <>
@@ -23,8 +24,8 @@ export default async function FocusPage() {
       />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)] xl:items-start">
-        <Card title={isAdmin ? 'Set the focus' : 'Current focus'} note={isAdmin ? 'Saved changes apply from the next agent run.' : 'Only admins can change the focus.'}>
-          {isAdmin ? (
+        <Card title={canEdit ? 'Set the focus' : 'Current focus'} note={canEdit ? 'Saved changes apply from the next agent run.' : 'Ask your admin for access to change the focus.'}>
+          {canEdit ? (
             <FocusForm current={focus} />
           ) : (
             <div className="text-sm text-ink-700">

@@ -16,8 +16,12 @@ export default async function SettingsPage() {
     <>
       <PageHeader title="Settings" />
       <div className="grid gap-6 xl:grid-cols-2">
-        <Card title="Your password" note={`Signed in as ${user.email}`}>
-          <OwnPasswordForm />
+        <Card title="Your password" note={`Signed in as ${user.username}`}>
+          {user.role === 'admin' ? (
+            <OwnPasswordForm />
+          ) : (
+            <p className="text-sm text-ink-700">Your User ID and password are managed by your admin. Ask them if you need a new password.</p>
+          )}
         </Card>
 
         {user.role === 'admin' && (

@@ -4,14 +4,14 @@ import { ArrowLeft } from 'lucide-react';
 import { AgentToggle } from '@/components/AgentToggle';
 import { Card, Empty, KindBadge, PageHeader, StatusBadge } from '@/components/ui';
 import { agentRuns, docKindLabel, getAgent, listDocs } from '@/lib/agents';
-import { requireUser } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
 import { fmtAgo, fmtDate, fmtDateTime, fmtNum } from '@/lib/format';
 import { listLeads } from '@/lib/leads';
 
 export const metadata = { title: 'Agent' };
 
 export default async function AgentPage({ params }: { params: { slug: string } }) {
-  const user = await requireUser();
+  await requirePermission('agents');
   const agent = await getAgent(params.slug);
   if (!agent) notFound();
   const [runs, docs, leads] = await Promise.all([agentRuns(agent.slug, 25), listDocs({ agent: agent.slug }, 12), listLeads({ agent: agent.slug }, 10)]);
@@ -28,7 +28,7 @@ export default async function AgentPage({ params }: { params: { slug: string } }
             ? `Paused by ${agent.paused_by || 'an admin'} ${fmtAgo(agent.paused_at)}. It skips its runs until you start it again.`
             : `${agent.schedule ? `${agent.schedule}. ` : ''}${agent.description}`
         }
-        actions={user.role === 'admin' ? <AgentToggle slug={agent.slug} paused={agent.paused} name={agent.name} size="md" /> : undefined}
+        actions={<AgentToggle slug={agent.slug} paused={agent.paused} name={agent.name} size="md" />}
       />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">

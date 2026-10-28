@@ -9,7 +9,7 @@ import {
   PageHeader,
   StatusBadge,
 } from "@/components/ui";
-import { requireUser } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { getSetting } from "@/lib/db";
 import { fmtNum, fmtShortDate } from "@/lib/format";
 import { listLeads, nichesList, sourcesList, type LeadFilters } from "@/lib/leads";
@@ -31,7 +31,7 @@ export default async function LeadsPage({
 }: {
   searchParams: SP;
 }) {
-  const user = await requireUser();
+  const user = await requirePermission("leads");
   const filters: LeadFilters = {
     kind: searchParams.kind || undefined,
     status: searchParams.status || undefined,

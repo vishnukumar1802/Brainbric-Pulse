@@ -1,13 +1,13 @@
 import Link from 'next/link';
 import { Empty, PageHeader } from '@/components/ui';
 import { docKindLabel, docKinds, listDocs } from '@/lib/agents';
-import { requireUser } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
 import { fmtDate } from '@/lib/format';
 
 export const metadata = { title: 'Reports' };
 
 export default async function ReportsPage({ searchParams }: { searchParams: { kind?: string } }) {
-  await requireUser();
+  await requirePermission('reports');
   const kind = searchParams.kind || undefined;
   const [kinds, docs] = await Promise.all([docKinds(), listDocs({ kind }, 100)]);
 

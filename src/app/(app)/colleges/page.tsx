@@ -3,7 +3,7 @@ import { Download, Search } from 'lucide-react';
 import { LeadQuickActions } from '@/components/LeadActions';
 import { CompanyMark } from '@/components/rich';
 import { Card, Empty, KpiStrip, PageHeader, StatusBadge, TierBadge } from '@/components/ui';
-import { requireUser } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
 import { collegeDistricts, collegeStats, estValue, fmtRupees, INSTITUTION_TYPES, programInfo, PROPOSAL_URL, TIERS } from '@/lib/colleges';
 import { getSetting } from '@/lib/db';
 import { fmtNum, fmtShortDate } from '@/lib/format';
@@ -22,7 +22,7 @@ function qs(sp: SP, patch: Partial<SP>) {
 }
 
 export default async function CollegesPage({ searchParams }: { searchParams: SP }) {
-  await requireUser();
+  await requirePermission('colleges');
   const tier = Number(searchParams.tier) || undefined;
   const filtered = Boolean(tier || searchParams.type || searchParams.district || searchParams.status || searchParams.q);
   const [stats, districts, colleges, myWhatsapp] = await Promise.all([

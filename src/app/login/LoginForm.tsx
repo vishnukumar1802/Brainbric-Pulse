@@ -18,10 +18,20 @@ export function LoginForm({ next }: { next: string }) {
     <form action={action} className="mt-6 flex flex-col gap-4">
       <input type="hidden" name="next" value={next} />
       <div>
-        <label htmlFor="email" className="label">
-          Email
+        <label htmlFor="username" className="label">
+          User ID
         </label>
-        <input id="email" name="email" type="email" autoComplete="username" required className="input" />
+        <input
+          id="username"
+          name="username"
+          type="text"
+          autoComplete="username"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          required
+          className="input"
+        />
       </div>
       <div>
         <label htmlFor="password" className="label">

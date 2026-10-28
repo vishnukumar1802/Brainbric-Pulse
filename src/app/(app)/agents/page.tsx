@@ -3,15 +3,16 @@ import { AgentToggle, AllAgentsToggle } from '@/components/AgentToggle';
 import { Card, PageHeader } from '@/components/ui';
 import { RunStrip } from '@/components/rich';
 import { listAgents, recentRunsByAgent } from '@/lib/agents';
-import { requireUser } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
 import { fmtAgo, fmtNum } from '@/lib/format';
 
 export const metadata = { title: 'AI team' };
 
 export default async function AgentsPage() {
-  const user = await requireUser();
+  const user = await requirePermission('agents');
   const [agents, runs] = await Promise.all([listAgents(), recentRunsByAgent(20)]);
-  const isAdmin = user.role === 'admin';
+  const isAdmin = true; // everyone who can open this page may pause and start agents
+  void user;
   const paused = agents.filter((a) => a.paused).length;
   return (
     <>

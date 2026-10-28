@@ -8,7 +8,7 @@ export type SessionClaims = {
   uid: number;
   role: 'admin' | 'member';
   name: string;
-  email: string;
+  username: string;
 };
 
 function secretKey(): Uint8Array {
@@ -39,7 +39,7 @@ export async function verifySession(token: string | undefined): Promise<SessionC
       uid: payload.uid,
       role: payload.role === 'admin' ? 'admin' : 'member',
       name: String(payload.name ?? ''),
-      email: String(payload.email ?? ''),
+      username: String(payload.username ?? ''),
     };
   } catch {
     return null;
