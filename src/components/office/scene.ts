@@ -277,7 +277,7 @@ export function drawOffice(c: Ctx, scale: number, s: SceneInput): Hit[] {
   });
   add(3.6, () => {
     if (s.talks > 0) {
-      const guest: OfficePerson = { id: 'guest', name: 'Guest', role: '', kind: 'member', floor: s.floor, state: 'working', bubble: null, detail: '', href: null, isYou: false };
+      const guest: OfficePerson = { id: 'guest', name: 'Guest', role: '', kind: 'member', floor: s.floor, state: 'working', bubble: null, detail: '', href: null, isYou: false, slug: null, paused: false };
       const h = person(2.55, 0.85, 0.42, guest, 0, true, true);
       tags.push(() => bubble(s.floor === 'g' ? `In talks · ${s.talks}` : `College talks · ${s.talks}`, [h[0], h[1] - 6]));
     }

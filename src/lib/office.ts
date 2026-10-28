@@ -18,6 +18,9 @@ export type OfficePerson = {
   detail: string;
   href: string | null;
   isYou: boolean;
+  /** Agents only: used by the Pause and Start buttons. */
+  slug: string | null;
+  paused: boolean;
 };
 
 export type OfficeFloor = {
@@ -36,6 +39,8 @@ export type OfficeData = {
   goal: { done: number; target: number };
   streak: number;
   scores: { id: number; name: string; xp: number; isYou: boolean }[];
+  /** Whether this person may pause and start agents. */
+  canControl: boolean;
 };
 
 /** Agents that work on the college programs floor. Everything else sits on the ground floor. */
@@ -117,7 +122,7 @@ export async function getOffice(me: User): Promise<OfficeData> {
   const recent = (iso: string | null, minutes: number) => Boolean(iso && Date.now() - new Date(iso).getTime() < minutes * 60_000);
   const people: OfficePerson[] = agents.map((a) => {
     const floor: FloorKey = COLLEGE_AGENTS.has(a.slug) ? 'f' : 'g';
-    const base = { id: `agent:${a.slug}`, name: a.nickname ?? a.name, role: a.name, kind: 'agent' as const, floor, href: `/agents/${a.slug}`, isYou: false };
+    const base = { id: `agent:${a.slug}`, name: a.nickname ?? a.name, role: a.name, kind: 'agent' as const, floor, href: `/agents/${a.slug}`, isYou: false, slug: a.slug, paused: a.paused };
     if (a.paused) return { ...base, state: 'paused', bubble: 'Paused', detail: 'Paused, in the pantry' };
     if (a.last_status === 'error') return { ...base, state: 'failed', bubble: 'Last run failed', detail: 'Last run failed' };
     const found = a.found_today ? `${a.found_today} found today` : a.schedule || 'On demand';
@@ -143,6 +148,8 @@ export async function getOffice(me: User): Promise<OfficeData> {
       detail: u.here || isYou ? (u.sent_today ? `${u.sent_today} sent today` : 'In today') : 'Away',
       href: u.role === 'admin' ? null : `/leads?assigned=${u.id}`,
       isYou,
+      slug: null,
+      paused: false,
     });
   }
 
@@ -171,5 +178,6 @@ export async function getOffice(me: User): Promise<OfficeData> {
     goal: { done: c.sent_today, target: DAILY_GOAL },
     streak,
     scores,
+    canControl: can(me, 'agents'),
   };
 }

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import type { FloorKey, OfficeData, OfficePerson } from '@/lib/office';
+import { AgentToggle, AllAgentsToggle } from '../AgentToggle';
 import { drawOffice, LH, LW, personColor, type Hit } from './scene';
 
 const FLOOR_LABEL: Record<FloorKey, string> = { g: 'Ground floor', f: 'First floor' };
@@ -170,6 +171,11 @@ export function OfficeView({ data }: { data: OfficeData }) {
   };
 
   const isFull = full || fallbackFull;
+  const picked = people.find((p) => p.id === selected) ?? null;
+  const agentsHere = data.people.filter((p) => p.kind === 'agent');
+  const allToggle = data.canControl && agentsHere.length > 0 && (
+    <AllAgentsToggle anyRunning={agentsHere.some((p) => !p.paused)} anyPaused={agentsHere.some((p) => p.paused)} />
+  );
   const floorSwitch = data.floors.length > 1 && (
     <div className="inline-flex gap-0.5 rounded-lg border border-paper-line bg-white p-[3px]" role="group" aria-label="Floor">
       {data.floors.map((f) => (
@@ -229,17 +235,40 @@ export function OfficeView({ data }: { data: OfficeData }) {
             const h = hitAt(e);
             if (!h) return;
             if (h.action === 'lift' && other) goFloor(other.key);
-            else if (h.href) router.push(h.href);
             else if (h.id) setSelected((s) => (s === h.id ? null : h.id!));
+            else if (h.href) router.push(h.href);
           }}
         />
         <div className={`absolute flex items-center gap-2 ${isFull ? 'left-4 right-4 top-4' : 'right-4 top-4'}`}>
           {isFull && <div className="mr-auto">{floorSwitch}</div>}
+          {isFull && allToggle}
           <button type="button" onClick={toggleFull} className="btn-ghost h-8 bg-white px-2.5 text-xs">
             {isFull ? <Minimize2 size={14} /> : <Maximize2 size={14} />} {isFull ? 'Exit full screen' : 'Full screen'}
           </button>
         </div>
-        {!isFull && (
+        {picked && (
+          <div className="absolute bottom-3 left-4 flex max-w-[calc(100%-2rem)] items-center gap-3 rounded-xl border border-paper-line bg-white px-3 py-2.5 shadow-[0_8px_24px_rgba(20,18,21,0.12)]">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xs font-bold text-white" style={{ background: personColor(picked) }}>
+              {picked.name.slice(0, 2).toUpperCase()}
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold text-ink-950">{picked.name}</span>
+              <span className="block truncate text-xs text-ink-500">
+                {picked.role} · {picked.detail}
+              </span>
+            </span>
+            {data.canControl && picked.slug && <AgentToggle slug={picked.slug} paused={picked.paused} name={picked.name} />}
+            {picked.href && (
+              <Link href={picked.href} className="btn-ghost h-7 px-2 text-xs">
+                Open
+              </Link>
+            )}
+            <button type="button" onClick={() => setSelected(null)} className="text-xs text-ink-400 hover:text-ink-950" aria-label="Close">
+              ✕
+            </button>
+          </div>
+        )}
+        {!isFull && !picked && (
           <div className="absolute bottom-3 right-4 hidden flex-wrap gap-3 rounded-lg border border-paper-line bg-white px-2.5 py-1 text-[11.5px] text-ink-700 sm:flex">
             {[
               ['#1D9E75', 'Working'],
@@ -257,8 +286,11 @@ export function OfficeView({ data }: { data: OfficeData }) {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {floorSwitch || <span />}
-        <span className="text-xs text-ink-400">Click a name in the office to open it. The office refreshes every minute.</span>
+        <div className="flex flex-wrap items-center gap-3">
+          {floorSwitch}
+          {allToggle}
+        </div>
+        <span className="text-xs text-ink-400">Click anyone in the office to see them, pause or start them. The office refreshes every minute.</span>
       </div>
 
       <section className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-2.5" aria-label={`People on the ${FLOOR_LABEL[floor].toLowerCase()}`}>
@@ -283,10 +315,16 @@ export function OfficeView({ data }: { data: OfficeData }) {
                 {stateText(p)}
               </span>
             </button>
-            {p.href && (
-              <Link href={p.href} className="shrink-0 text-xs font-medium text-ink-500 hover:text-ink-950 hover:underline">
-                Open
-              </Link>
+            {data.canControl && p.slug ? (
+              <span className="shrink-0">
+                <AgentToggle slug={p.slug} paused={p.paused} name={p.name} />
+              </span>
+            ) : (
+              p.href && (
+                <Link href={p.href} className="shrink-0 text-xs font-medium text-ink-500 hover:text-ink-950 hover:underline">
+                  Open
+                </Link>
+              )
             )}
           </div>
         ))}
