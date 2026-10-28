@@ -165,6 +165,16 @@ ALTER TABLE proposals ADD COLUMN IF NOT EXISTS views INT NOT NULL DEFAULT 0;
 ALTER TABLE proposals ADD COLUMN IF NOT EXISTS last_viewed_at TIMESTAMPTZ;
 CREATE UNIQUE INDEX IF NOT EXISTS proposals_share_idx ON proposals(share_token);
 
+-- Live steps for the moving office (see lib/live.ts). Kept for a few days only.
+CREATE TABLE IF NOT EXISTS agent_events (
+  id SERIAL PRIMARY KEY,
+  agent TEXT NOT NULL,
+  step TEXT NOT NULL,
+  text TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS agent_events_created_idx ON agent_events(created_at);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL

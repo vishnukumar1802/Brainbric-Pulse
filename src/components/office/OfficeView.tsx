@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FloorKey, OfficeData, OfficePerson } from '@/lib/office';
 import { AgentToggle, AllAgentsToggle } from '../AgentToggle';
 import { drawOffice, LH, LW, personColor, type Hit } from './scene';
+import { OfficeSim, type LiveStepEvent } from './sim';
 
 const FLOOR_LABEL: Record<FloorKey, string> = { g: 'Ground floor', f: 'First floor' };
 const fmt = (n: number) => n.toLocaleString('en-IN');
@@ -26,10 +27,20 @@ function Tile({ label, value, hint, bar }: { label: string; value: string; hint:
   );
 }
 
-function stateText(p: OfficePerson) {
+function stateText(p: OfficePerson, live?: string) {
+  if (live && !p.paused) return <span className="block truncate text-[11px] font-semibold text-flame-ink">● {live}</span>;
   const tone = p.state === 'failed' ? 'text-[#C4242A]' : p.state === 'walking' ? 'text-flame-ink' : p.state === 'working' && p.kind === 'agent' ? 'text-[#247B50]' : 'text-ink-500';
   return <span className={`text-[11px] font-semibold ${tone}`}>{p.detail}</span>;
 }
+
+const STEP_TEXT: Record<string, string> = {
+  started: 'Starting a run',
+  searching: 'Searching',
+  found: 'Found a lead',
+  writing: 'Writing a draft',
+  drafted: 'Saved a draft',
+  note: 'Working',
+};
 
 /** The Overview as a live 3D office: one floor for software services, one for college programs. */
 export function OfficeView({ data }: { data: OfficeData }) {
@@ -44,14 +55,77 @@ export function OfficeView({ data }: { data: OfficeData }) {
   const liftRef = useRef<number | null>(null);
   const clockRef = useRef(0);
   const drawRef = useRef<((t: number) => void) | null>(null);
+  // One simulation per floor, kept alive while you look at the other floor.
+  const simsRef = useRef<Record<FloorKey, OfficeSim> | null>(null);
+  if (!simsRef.current) simsRef.current = { g: new OfficeSim(), f: new OfficeSim() };
+  // What each agent is doing right now, from its live steps (shown on its card).
+  const [live, setLive] = useState<Record<string, string>>({});
 
   const floorInfo = data.floors.find((f) => f.key === floor) ?? data.floors[0];
   const other = data.floors.find((f) => f.key !== floor) ?? null;
   const people = data.people.filter((p) => p.floor === floor);
 
   // Keep the drawing inputs in a ref so the animation loop always reads the latest without restarting.
-  const inputRef = useRef({ floor, people, floorInfo, other, selected });
-  inputRef.current = { floor, people, floorInfo, other, selected };
+  const inputRef = useRef({ floor, floorInfo, other, selected });
+  inputRef.current = { floor, floorInfo, other, selected };
+
+  // Match the cast to the latest data (someone paused, a new agent, a team member signing in).
+  useEffect(() => {
+    const sims = simsRef.current!;
+    sims.g.sync(data.people.filter((p) => p.floor === 'g'), true);
+    sims.f.sync(data.people.filter((p) => p.floor === 'f'), false);
+  }, [data]);
+
+  // Live steps: what happened in the last 15 minutes sets the scene; after that every new step is acted out.
+  useEffect(() => {
+    let lastId = 0;
+    let stop = false;
+    let refreshAt = 0;
+    const apply = (events: LiveStepEvent[], replay: boolean) => {
+      const sims = simsRef.current!;
+      let changed = false;
+      const next: Record<string, string | null> = {};
+      for (const e of events) {
+        lastId = Math.max(lastId, e.id);
+        sims.g.push(e, replay);
+        sims.f.push(e, replay);
+        next[e.agent] = e.step === 'finished' || e.step === 'failed' ? null : e.text || STEP_TEXT[e.step] || 'Working';
+        if (replay && (e.step === 'drafted' || e.step === 'finished' || e.step === 'failed')) changed = true;
+      }
+      if (Object.keys(next).length) {
+        setLive((prev) => {
+          const out = { ...prev };
+          for (const [k, v] of Object.entries(next)) {
+            if (v) out[k] = v;
+            else delete out[k];
+          }
+          return out;
+        });
+      }
+      // New drafts or a finished run change the counts: reload the page data, at most every 10 seconds.
+      if (changed && Date.now() > refreshAt) {
+        refreshAt = Date.now() + 10_000;
+        router.refresh();
+      }
+    };
+    const poll = async (first: boolean) => {
+      try {
+        const res = await fetch(`/api/office/live${first ? '' : `?since=${lastId}`}`, { cache: 'no-store' });
+        if (res.ok) {
+          const { events } = (await res.json()) as { events: LiveStepEvent[] };
+          apply(events, !first);
+        }
+      } catch {
+        // Offline for a moment: try again on the next tick.
+      }
+      if (!stop) timer = window.setTimeout(() => poll(false), document.hidden ? 30_000 : 6_000);
+    };
+    let timer = window.setTimeout(() => poll(true), 300);
+    return () => {
+      stop = true;
+      window.clearTimeout(timer);
+    };
+  }, [router]);
 
   useEffect(() => {
     const cv = canvasRef.current;
@@ -70,7 +144,7 @@ export function OfficeView({ data }: { data: OfficeData }) {
       const i = inputRef.current;
       hitsRef.current = drawOffice(ctx, cv.width / LW, {
         floor: i.floor,
-        people: i.people,
+        actors: simsRef.current![i.floor].actors,
         ready: i.floorInfo.ready,
         readyHref: i.floorInfo.readyHref,
         talks: i.floorInfo.talks,
@@ -91,15 +165,25 @@ export function OfficeView({ data }: { data: OfficeData }) {
     ro.observe(cv);
     let raf = 0;
     const start = performance.now();
+    const tick = (t: number) => {
+      // Big gaps (a background tab) are not replayed as one long jump across the room.
+      const dt = Math.min(0.25, Math.max(0, t - clockRef.current));
+      clockRef.current = t;
+      simsRef.current!.g.step(dt, t);
+      simsRef.current!.f.step(dt, t);
+      draw(t);
+    };
     const loop = (n: number) => {
-      clockRef.current = (n - start) / 1000;
-      draw(clockRef.current);
+      tick((n - start) / 1000);
       raf = requestAnimationFrame(loop);
     };
     if (reduce) {
-      clockRef.current = 6;
-      draw(6);
-      const id = window.setInterval(() => draw(6), 1000);
+      // Reduced motion: people still change places, a step a second, without walking animation.
+      const id = window.setInterval(() => {
+        const t = clockRef.current + 1;
+        clockRef.current = t - 0.25;
+        tick(t);
+      }, 1000);
       return () => {
         ro.disconnect();
         window.clearInterval(id);
@@ -312,7 +396,7 @@ export function OfficeView({ data }: { data: OfficeData }) {
               <span className="min-w-0">
                 <span className="block truncate text-[13.5px] font-semibold text-ink-950">{p.name}</span>
                 <span className="block truncate text-[11.5px] text-ink-500">{p.role}</span>
-                {stateText(p)}
+                {stateText(p, p.slug ? live[p.slug] : undefined)}
               </span>
             </button>
             {data.canControl && p.slug ? (

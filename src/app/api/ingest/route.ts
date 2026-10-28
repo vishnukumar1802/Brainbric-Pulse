@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { agentAuthorized } from '@/lib/agentAuth';
 import { one, q } from '@/lib/db';
+import { addLiveEvents, type LiveStep } from '@/lib/live';
 import { newShareToken } from '@/lib/proposals';
 
 export const dynamic = 'force-dynamic';
@@ -158,6 +159,7 @@ export async function POST(req: Request) {
   );
 
   let created = 0;
+  const live: { step: LiveStep; text: string | null }[] = [];
   let updated = 0;
   const notFound: string[] = [];
   for (const lead of p.leads) {
@@ -212,6 +214,9 @@ export async function POST(req: Request) {
     const isNew = Boolean(rows[0]?.inserted);
     if (isNew) created++;
     else updated++;
+    const label = lead.company || lead.contact_name || lead.requirement?.slice(0, 50) || null;
+    if (isNew) live.push({ step: 'found', text: label });
+    if (lead.status === 'drafted') live.push({ step: 'drafted', text: label });
     await q('INSERT INTO activities (lead_id, actor, type, note) VALUES ($1, $2, $3, $4)', [
       id,
       p.agent_name || p.agent,
@@ -273,6 +278,17 @@ export async function POST(req: Request) {
     await q('INSERT INTO activities (lead_id, actor, type, note) VALUES ($1, $2, $3, $4)', [lead.id, p.agent_name || p.agent, 'proposal', 'Proposal drafted by the agent']);
     proposals++;
   }
+
+  if (p.run) live.push({ step: p.run.status === 'error' ? 'failed' : 'finished', text: p.run.summary ?? null });
+  // The office replays these: walking to the pipeline board, to the mail room, then finishing. If the agent already
+  // reported its steps live during this run, only the finish is added, so nothing is acted out twice.
+  const reportedLive = await one<{ n: number }>(
+    `SELECT COUNT(*)::int AS n FROM agent_events WHERE agent = $1 AND step IN ('searching','found','writing','drafted')
+       AND id > COALESCE((SELECT MAX(id) FROM agent_events WHERE agent = $1 AND step = 'started'), 0)`,
+    [p.agent],
+  ).catch(() => null);
+  const steps = reportedLive?.n ? [] : live.filter((e) => e.step !== 'finished' && e.step !== 'failed').slice(0, 14);
+  await addLiveEvents(p.agent, [...steps, ...live.filter((e) => e.step === 'finished' || e.step === 'failed')]).catch(() => undefined);
 
   if (p.run) {
     await q('INSERT INTO agent_runs (agent, status, summary, stats) VALUES ($1, $2, $3, $4::text::jsonb)', [

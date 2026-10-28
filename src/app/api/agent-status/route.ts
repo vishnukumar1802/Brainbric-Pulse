@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { agentAuthorized } from '@/lib/agentAuth';
 import { one } from '@/lib/db';
+import { addLiveEvents } from '@/lib/live';
 import { focusForAgents, getFocus } from '@/lib/focus';
 import { getPriceGuide } from '@/lib/proposals';
 
@@ -26,6 +27,8 @@ export async function GET(req: Request) {
     getFocus(),
     getPriceGuide(),
   ]);
+  // Checking in is how every run begins, so the office shows the agent sitting down to work.
+  if (!row?.paused) await addLiveEvents(slug, [{ step: 'started', text: null }]).catch(() => undefined);
   return NextResponse.json(
     {
       agent: slug,

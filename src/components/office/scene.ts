@@ -1,6 +1,7 @@
 // Draws the isometric office on a 2D canvas. Plain functions, no React: the OfficeView component calls drawOffice
-// every animation frame and gets back the clickable areas (name tags and room labels).
+// every animation frame with the people from the simulation (sim.ts) and gets back the clickable areas.
 import type { FloorKey, OfficePerson } from '@/lib/office';
+import { DESKS, PANTRY_SEATS, type Actor, type BubbleKind } from './sim';
 
 export const LW = 900;
 export const LH = 540;
@@ -12,7 +13,7 @@ export type Hit = { x: number; y: number; w: number; h: number; href?: string; a
 
 export type SceneInput = {
   floor: FloorKey;
-  people: OfficePerson[];
+  actors: Actor[];
   ready: number;
   readyHref: string;
   talks: number;
@@ -55,11 +56,6 @@ function looks(id: string) {
   return { hair: HAIR[h % HAIR.length], shirt: SHIRTS[(h >>> 4) % SHIRTS.length] };
 }
 
-const DESKS: [number, number][] = [
-  [1.0, 6], [3.8, 6], [6.6, 6], [9.4, 6],
-  [1.0, 10], [3.8, 10], [6.6, 10], [9.4, 10],
-];
-const PANTRY_SEATS: [number, number][] = [[15.58, 3.4], [16.35, 3.4], [14.8, 3.4]];
 
 type Ctx = CanvasRenderingContext2D;
 type Pt = [number, number];
@@ -70,37 +66,6 @@ function P(x: number, y: number, z: number): Pt {
 function shade(hex: string, f: number): string {
   const n = parseInt(hex.slice(1), 16);
   return `rgb(${((n >> 16) * f) | 0},${(((n >> 8) & 255) * f) | 0},${((n & 255) * f) | 0})`;
-}
-
-function pathPos(pts: Pt[], t: number, speed: number, pause: number) {
-  const seg: number[] = [];
-  let L = 0;
-  for (let i = 1; i < pts.length; i++) {
-    const l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
-    seg.push(l);
-    L += l;
-  }
-  const tt = L / speed;
-  const m = t % (2 * tt + 2 * pause);
-  let d: number;
-  let st: 'start' | 'move' | 'end' = 'move';
-  if (m < pause) {
-    d = 0;
-    st = 'start';
-  } else if (m < pause + tt) d = (m - pause) * speed;
-  else if (m < 2 * pause + tt) {
-    d = L;
-    st = 'end';
-  } else d = L - (m - 2 * pause - tt) * speed;
-  let i = 0;
-  while (i < seg.length - 1 && d > seg[i]) {
-    d -= seg[i];
-    i++;
-  }
-  const a = pts[i];
-  const b = pts[i + 1];
-  const k = seg[i] ? Math.min(1, d / seg[i]) : 0;
-  return { x: a[0] + (b[0] - a[0]) * k, y: a[1] + (b[1] - a[1]) * k, st };
 }
 
 export function drawOffice(c: Ctx, scale: number, s: SceneInput): Hit[] {
@@ -149,8 +114,10 @@ export function drawOffice(c: Ctx, scale: number, s: SceneInput): Hit[] {
     c.arcTo(x, y, x + w, y, r);
     c.closePath();
   };
-  const bubble = (text: string, p: Pt, danger = false) => {
-    c.font = font(600, 12);
+  const bubble = (text: string, p: Pt, kind: BubbleKind = 'work') => {
+    const danger = kind === 'alert';
+    const chat = kind === 'chat';
+    c.font = chat ? `italic ${font(500, 12)}` : font(600, 12);
     const w = c.measureText(text).width + 18;
     const x = p[0] - w / 2;
     const y = p[1] - 28;
@@ -158,14 +125,14 @@ export function drawOffice(c: Ctx, scale: number, s: SceneInput): Hit[] {
     rr(x + 1, y + 2, w, 22, 11);
     c.fill();
     rr(x, y, w, 22, 11);
-    c.fillStyle = danger ? '#FFEDEA' : '#ffffff';
+    c.fillStyle = danger ? '#FFEDEA' : chat ? '#F4F2EC' : '#ffffff';
     c.fill();
     c.beginPath();
     c.moveTo(p[0] - 5, y + 21);
     c.lineTo(p[0], y + 27);
     c.lineTo(p[0] + 5, y + 21);
     c.fill();
-    c.fillStyle = danger ? '#831C1E' : '#1d1a1e';
+    c.fillStyle = danger ? '#831C1E' : chat ? '#5F5E5A' : '#1d1a1e';
     c.textAlign = 'center';
     c.fillText(text, p[0], y + 15);
   };
@@ -224,11 +191,27 @@ export function drawOffice(c: Ctx, scale: number, s: SceneInput): Hit[] {
   const tagText = (p: OfficePerson) => (p.name.length > 12 ? p.name.split(' ')[0] : p.name);
   const nameTag = (p: OfficePerson, at: Pt) => pill(tagText(p), at, personColor(p), { href: p.href ?? undefined, id: p.id });
 
-  // Who sits where.
-  const present = s.people.filter((p) => p.state !== 'away');
-  const cabin = s.floor === 'g' ? present.find((p) => p.kind === 'admin' && p.isYou) ?? present.find((p) => p.kind === 'admin') : undefined;
-  const pantry = present.filter((p) => p.state === 'paused').slice(0, PANTRY_SEATS.length);
-  const desked = present.filter((p) => p !== cabin && p.state !== 'paused').sort((a, b) => Number(a.kind !== 'agent') - Number(b.kind !== 'agent')).slice(0, DESKS.length);
+  // Who is sitting where right now (the simulation decides; walkers have no seat).
+  const seatedAt = (kind: 'desk' | 'pantry' | 'cabin', i = 0) =>
+    s.actors.find((a) => !a.walking && a.seat?.kind === kind && (kind === 'cabin' || (a.seat as { i: number }).i === i));
+  const deskOwner = (i: number) => s.actors.find((a) => a.home?.kind === 'desk' && (a.home as { i: number }).i === i);
+  /** Name tag, and the speech bubble above it: the simulation's bubble, or what they are doing when selected. */
+  const label = (a: Actor, at: Pt, zz = false) => {
+    tags.push(() => {
+      nameTag(a.person, at);
+      if (zz) {
+        const k = s.t % 2;
+        c.font = font(700, 14);
+        c.fillStyle = '#6b6b8a';
+        c.textAlign = 'left';
+        c.globalAlpha = 1 - k / 2;
+        c.fillText('z z', at[0] + 18, at[1] - 8 - k * 10);
+        c.globalAlpha = 1;
+      }
+      const b = a.bubble ?? (s.selected === a.person.id ? { text: a.person.detail, kind: 'work' as const } : null);
+      if (b) bubble(b.text, [at[0], at[1] - 10], b.kind);
+    });
+  };
 
   c.setTransform(scale, 0, 0, scale, 0, 0);
   c.clearRect(0, 0, LW, LH);
@@ -279,7 +262,7 @@ export function drawOffice(c: Ctx, scale: number, s: SceneInput): Hit[] {
     if (s.talks > 0) {
       const guest: OfficePerson = { id: 'guest', name: 'Guest', role: '', kind: 'member', floor: s.floor, state: 'working', bubble: null, detail: '', href: null, isYou: false, slug: null, paused: false };
       const h = person(2.55, 0.85, 0.42, guest, 0, true, true);
-      tags.push(() => bubble(s.floor === 'g' ? `In talks · ${s.talks}` : `College talks · ${s.talks}`, [h[0], h[1] - 6]));
+      tags.push(() => bubble(s.floor === 'g' ? `In talks · ${s.talks}` : `College talks · ${s.talks}`, [h[0], h[1] - 6], 'work'));
     }
     box(2.45, 0.62, 0.42, 0.5, 0.12, 0.45, '#c94d6d');
   });
@@ -311,31 +294,16 @@ export function drawOffice(c: Ctx, scale: number, s: SceneInput): Hit[] {
   PANTRY_SEATS.forEach(([sx, sy], i) => {
     add(sx + sy + 0.6, () => {
       box(sx - 0.03, sy - 0.05, 0, 0.42, 0.42, 0.45, '#E4572E');
-      const p = pantry[i];
-      if (!p) return;
-      const h = person(sx, sy, 0.45, p, 0, true, false);
-      tags.push(() => {
-        nameTag(p, h);
-        const k = s.t % 2;
-        c.font = font(700, 14);
-        c.fillStyle = '#6b6b8a';
-        c.textAlign = 'left';
-        c.globalAlpha = 1 - k / 2;
-        c.fillText('z z', h[0] + 18, h[1] - 8 - k * 10);
-        c.globalAlpha = 1;
-        if (s.selected === p.id) bubble('Paused', [h[0], h[1] - 12]);
-      });
+      const a = seatedAt('pantry', i);
+      if (!a) return;
+      const h = person(sx, sy, 0.45, a.person, 0, true, false);
+      label(a, h, a.person.paused);
     });
   });
 
   add(20.6, () => {
-    if (cabin) {
-      const h = person(15.55, 5.6, 0.45, cabin, 0, true, true);
-      tags.push(() => {
-        nameTag(cabin, h);
-        if (cabin.bubble && (s.selected === cabin.id || s.t % 14 < 4)) bubble(cabin.bubble, [h[0], h[1] - 8]);
-      });
-    }
+    const a = seatedAt('cabin');
+    if (a) label(a, person(15.55, 5.6, 0.45, a.person, 0, true, true));
     box(15.45, 5.35, 0.45, 0.55, 0.12, 0.6, '#2d3240');
   });
   add(21.6, () => {
@@ -359,25 +327,24 @@ export function drawOffice(c: Ctx, scale: number, s: SceneInput): Hit[] {
     }
   });
   add(13, () => plant(0.3, 13.2));
-  add(17, () => plant(12.1, 5.0));
-  add(25.5, () => plant(12.2, 13.0));
+  add(13.1, () => plant(12.5, 0.5));
+  add(25.9, () => plant(12.5, 13.4));
   add(7, () => plant(6.4, 0.4));
+  // Water cooler by the lift: a favourite spot for a chat.
+  add(7.9, () => {
+    box(6.3, 1.25, 0, 0.42, 0.42, 0.75, '#dfe6ea');
+    box(6.36, 1.31, 0.75, 0.3, 0.3, 0.32, '#9fd4ef');
+  });
 
   DESKS.forEach(([dx, dy], i) => {
-    const p = desked[i];
-    const walking = p?.state === 'walking';
-    const pts: Pt[] =
-      dy < 8
-        ? [[dx + 0.83, dy + 2.3], [dx + 0.83, 9], [12.3, 9], [12.3, 12.2], [14.6, 12.4]]
-        : [[dx + 0.83, dy + 2.6], [12.3, dy + 2.6], [12.3, 12.2], [14.6, 12.4]];
-    const pos = walking ? pathPos(pts, s.t + i * 2.3, 1.7, 2.4) : null;
-    const seated = p && (!pos || pos.st === 'start') ? p : null;
-    const on = Boolean(p);
+    const owner = deskOwner(i);
+    const sitter = seatedAt('desk', i);
     add(dx + dy + 1.55, () => {
       box(dx, dy, 0, 2.0, 1.1, 0.72, '#c99a63');
       box(dx + 0.6, dy + 0.2, 0.72, 0.8, 0.1, 0.52, '#2d3038');
-      const glow = p?.state === 'failed' ? (fr ? '#ff9a9a' : '#e45b5b') : fr && seated ? '#9fe6ff' : '#62c6ee';
-      fy(dx + 0.66, dx + 1.34, dy + 0.3, 0.78, 1.18, on ? glow : '#1d2229');
+      const failed = owner?.person.kind === 'agent' && owner.person.state === 'failed' && !owner.working;
+      const glow = failed ? (fr ? '#ff9a9a' : '#e45b5b') : fr && sitter ? '#9fe6ff' : '#62c6ee';
+      fy(dx + 0.66, dx + 1.34, dy + 0.3, 0.78, 1.18, owner ? glow : '#1d2229');
       box(dx + 0.85, dy + 0.25, 0.72, 0.3, 0.25, 0.04, '#2d3038');
       box(dx + 0.62, dy + 0.55, 0.72, 0.75, 0.22, 0.03, '#efefef');
       box(dx + 1.6, dy + 0.45, 0.72, 0.14, 0.14, 0.16, th.acc);
@@ -385,29 +352,21 @@ export function drawOffice(c: Ctx, scale: number, s: SceneInput): Hit[] {
     add(dx + dy + 2.8, () => {
       box(dx + 0.95, dy + 1.6, 0, 0.1, 0.1, 0.35, '#222');
       box(dx + 0.65, dy + 1.35, 0.35, 0.7, 0.6, 0.1, '#3b4252');
-      let h: Pt | null = null;
-      if (seated) h = person(dx + 0.83, dy + 1.42, 0.45, seated, 0, true, false);
+      const h = sitter ? person(dx + 0.83, dy + 1.42, 0.45, sitter.person, 0, true, false) : null;
       box(dx + 0.65, dy + 1.9, 0.45, 0.7, 0.1, 0.55, '#3b4252');
-      if (seated && h) {
-        const at: Pt = [h[0], h[1] + 6];
-        tags.push(() => {
-          nameTag(seated, at);
-          const show = seated.state === 'failed' || s.selected === seated.id || (s.t + i * 3.1) % 12 < 3.5;
-          if (seated.bubble && show) bubble(seated.bubble, [h![0], h![1] - 8], seated.state === 'failed');
-        });
-      }
+      if (sitter && h) label(sitter, [h[0], h[1] + 6]);
     });
-    if (p && pos && pos.st !== 'start') {
-      add(pos.x + pos.y + 0.4, () => {
-        const h = person(pos.x, pos.y, 0, p, pos.st === 'move' ? fr : 0, false, true);
-        if (pos.st === 'move') box(pos.x + 0.38, pos.y + 0.05, 0.75, 0.2, 0.26, 0.14, '#ffffff');
-        tags.push(() => {
-          nameTag(p, h);
-          if (pos.st === 'end' && p.bubble) bubble(p.bubble, [h[0], h[1] - 12]);
-        });
-      });
-    }
   });
+
+  // Everyone on their feet: walking, standing at the board, chatting by the cooler.
+  for (const a of s.actors) {
+    if (a.seat && !a.walking) continue;
+    add(a.x + a.y + 0.45, () => {
+      const h = person(a.x, a.y, 0, a.person, a.walking ? fr : 0, false, a.front);
+      if (a.carry) box(a.x + 0.38, a.y + 0.05, 0.75, 0.2, 0.26, 0.14, '#ffffff');
+      label(a, h);
+    });
+  }
 
   items.sort((a, b) => a.k - b.k).forEach((o) => o.fn());
 
@@ -421,14 +380,14 @@ export function drawOffice(c: Ctx, scale: number, s: SceneInput): Hit[] {
   tags.forEach((g) => g());
 
   c.font = font(700, 13);
-  const label = th.label;
-  const lw = c.measureText(label).width + 22;
+  const floorName = th.label;
+  const lw = c.measureText(floorName).width + 22;
   rr(10, 10, lw, 26, 13);
   c.fillStyle = th.acc;
   c.fill();
   c.fillStyle = '#ffffff';
   c.textAlign = 'left';
-  c.fillText(label, 21, 27);
+  c.fillText(floorName, 21, 27);
 
   // Lift doors close and open when changing floors.
   if (s.liftT != null && s.liftT >= 0 && s.liftT < 0.9) {
