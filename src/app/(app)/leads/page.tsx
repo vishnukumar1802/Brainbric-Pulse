@@ -22,6 +22,8 @@ type SP = {
   status?: string;
   source?: string;
   niche?: string;
+  assigned?: string;
+  due?: string;
   q?: string;
   mine?: string;
 };
@@ -37,6 +39,8 @@ export default async function LeadsPage({
     status: searchParams.status || undefined,
     source: searchParams.source || undefined,
     niche: searchParams.niche || undefined,
+    assigned: Number(searchParams.assigned) || undefined,
+    due: searchParams.due ? true : undefined,
     q: searchParams.q?.trim() || undefined,
     mine: searchParams.mine ? user.id : undefined,
   };

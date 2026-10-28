@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS users (
 -- Sign-in is by User ID. Email is optional contact info. Permissions are a comma list (see lib/permissions.ts).
 ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions TEXT NOT NULL DEFAULT 'leads,reports';
+-- Appended to emails a team member sends from their own Outlook.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS signature TEXT;
 ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
 UPDATE users SET username = 'admin'
   WHERE username IS NULL

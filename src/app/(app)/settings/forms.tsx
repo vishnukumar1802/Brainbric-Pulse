@@ -48,7 +48,7 @@ export function OwnPasswordForm() {
   );
 }
 
-export function WorkspaceForm({ myWhatsapp }: { myWhatsapp: string }) {
+export function WorkspaceForm({ myWhatsapp, teamBcc }: { myWhatsapp: string; teamBcc: string }) {
   const [state, action] = useFormState(saveSettingsAction, undefined);
   return (
     <form action={action} className="flex flex-col gap-3">
@@ -59,6 +59,15 @@ export function WorkspaceForm({ myWhatsapp }: { myWhatsapp: string }) {
         <input id="my_whatsapp" name="my_whatsapp" defaultValue={myWhatsapp} placeholder="+91 98765 43210" className="input" inputMode="tel" />
         <p className="mt-1 text-xs text-ink-500">
           Adds a &ldquo;Send to my WhatsApp to review&rdquo; button on each lead, so you can read the message on your phone before sending it on.
+        </p>
+      </div>
+      <div>
+        <label htmlFor="team_bcc" className="label">
+          Copy every team email to (hidden BCC)
+        </label>
+        <input id="team_bcc" name="team_bcc" type="email" defaultValue={teamBcc} placeholder="Leave empty to use the admin's email" className="input" />
+        <p className="mt-1 text-xs text-ink-500">
+          When a team member sends from their own Outlook, this address gets a hidden copy, so you see every email and the agents can track it.
         </p>
       </div>
       <Message state={state} />

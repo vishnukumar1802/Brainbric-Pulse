@@ -65,6 +65,10 @@ export type LeadFilters = {
   district?: string;
   institutionType?: string;
   niche?: string;
+  /** Owner: the team member who sent it. */
+  assigned?: number;
+  /** Sent or on follow-up 1, last touched 4+ days ago. */
+  due?: boolean;
 };
 
 export async function listLeads(f: LeadFilters = {}, limit = 500): Promise<Lead[]> {
@@ -78,6 +82,8 @@ export async function listLeads(f: LeadFilters = {}, limit = 500): Promise<Lead[
   if (f.kind) add('l.kind = ?', f.kind);
   else where.push("l.kind <> 'college'");
   if (f.niche) add('l.niche = ?', f.niche);
+  if (f.assigned) add('l.assigned_to = ?', f.assigned);
+  if (f.due) where.push(`l.status IN ('sent','followup1') AND l.last_touch <= CURRENT_DATE - 4`);
   if (f.status === 'hot') where.push(`l.status IN (${HOT_STATUSES.map((s) => `'${s}'`).join(',')})`);
   else if (f.status) add('l.status = ?', f.status);
   if (f.source) add('l.source_platform = ?', f.source);
@@ -200,5 +206,23 @@ export async function nextUp(): Promise<Lead | null> {
 export async function nichesList(): Promise<{ niche: string; n: number }[]> {
   return q<{ niche: string; n: number }>(
     `SELECT niche, COUNT(*)::int AS n FROM leads WHERE kind <> 'college' AND niche IS NOT NULL AND niche <> '' GROUP BY 1 ORDER BY n DESC, 1`,
+  );
+}
+
+export type TeamRow = { id: number; name: string; sent_today: number; sent_week: number; talking: number; due: number };
+
+/** Per person: emails marked sent today and in 7 days, leads they own that are in talks, and their follow-ups due. */
+export async function teamActivity(onlyUserId?: number): Promise<TeamRow[]> {
+  return q<TeamRow>(
+    `SELECT u.id, u.name,
+       (SELECT COUNT(*)::int FROM activities a WHERE a.user_id = u.id AND a.type = 'sent'
+          AND a.created_at >= (date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata')) AS sent_today,
+       (SELECT COUNT(*)::int FROM activities a WHERE a.user_id = u.id AND a.type = 'sent' AND a.created_at > now() - interval '7 days') AS sent_week,
+       (SELECT COUNT(*)::int FROM leads l WHERE l.assigned_to = u.id AND l.status IN ('replied','interested','call_booked','proposal')) AS talking,
+       (SELECT COUNT(*)::int FROM leads l WHERE l.assigned_to = u.id AND l.status IN ('sent','followup1') AND l.last_touch <= CURRENT_DATE - 4) AS due
+     FROM users u
+     WHERE u.active AND ($1::int IS NULL OR u.id = $1)
+     ORDER BY u.role DESC, u.name`,
+    [onlyUserId ?? null],
   );
 }

@@ -29,7 +29,7 @@ export default async function EditUserPage({ params }: { params: { id: string } 
         <Card title="Details and access">
           <EditUserForm
             isSelf={isSelf}
-            user={{ id: user.id, name: user.name, username: user.username, email: user.email, role: user.role, permissions: user.permissions, active: user.active }}
+            user={{ id: user.id, name: user.name, username: user.username, email: user.email, role: user.role, permissions: user.permissions, signature: user.signature, active: user.active }}
           />
         </Card>
         <Card title="Set a new password" note="Passwords are stored securely and cannot be viewed. Set a new one any time; it is shown once to copy.">

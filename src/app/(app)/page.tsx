@@ -11,7 +11,7 @@ import { requirePermission } from '@/lib/auth';
 import { can } from '@/lib/permissions';
 import { getSetting } from '@/lib/db';
 import { fmtAgo, fmtDate, fmtNum } from '@/lib/format';
-import { listLeads, nextUp, openByCountry, pipelineStats, recentActivity } from '@/lib/leads';
+import { listLeads, nextUp, openByCountry, pipelineStats, recentActivity, teamActivity } from '@/lib/leads';
 
 export const metadata = { title: 'Overview' };
 
@@ -21,7 +21,7 @@ function plural(n: number, one: string, many: string) {
 
 export default async function Overview() {
   const user = await requirePermission('leads');
-  const [stats, next, ready, hot, agents, runs, feed, countries, briefs, myWhatsapp] = await Promise.all([
+  const [stats, next, ready, hot, agents, runs, feed, countries, briefs, myWhatsapp, team] = await Promise.all([
     pipelineStats(),
     nextUp(),
     listLeads({ status: 'drafted' }, 7),
@@ -32,6 +32,7 @@ export default async function Overview() {
     openByCountry(),
     listDocs({ kind: 'brief' }, 1),
     getSetting('my_whatsapp'),
+    teamActivity(user.role === 'admin' ? undefined : user.id),
   ]);
   const t = stats.totals ?? { total: 0, cold: 0, requirement: 0, drafted: 0, hot: 0, contacted: 0, won: 0, week: 0 };
   const maxSource = Math.max(1, ...stats.bySource.map((s) => s.n));
@@ -75,6 +76,57 @@ export default async function Overview() {
           { label: 'Found this week', value: fmtNum(t.week), sub: `${plural(t.cold, 'company', 'companies')}, ${plural(t.requirement, 'post', 'posts')} overall`, href: '/leads' },
         ]}
       />
+
+      <Card
+        flush
+        className="mt-4"
+        title={user.role === 'admin' ? 'Team activity' : 'Your follow-ups'}
+        note={
+          user.role === 'admin'
+            ? 'Emails your team marked as sent, the leads they own and their follow-ups due. Click a number to see the leads.'
+            : 'Leads you sent. Follow-ups are due 4 days after the last email.'
+        }
+      >
+        <div className="overflow-x-auto border-t border-paper-line">
+          <table className="w-full min-w-[520px] text-sm">
+            <thead>
+              <tr className="border-b border-paper-line text-left text-xs font-medium text-ink-500">
+                <th className="px-5 py-2">Person</th>
+                <th className="px-3 py-2 text-right">Sent today</th>
+                <th className="px-3 py-2 text-right">Sent, 7 days</th>
+                <th className="px-3 py-2 text-right">In talks</th>
+                <th className="px-5 py-2 text-right">Follow-ups due</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-paper-rule">
+              {team.map((m) => (
+                <tr key={m.id}>
+                  <td className="px-5 py-2.5 font-medium text-ink-950">{m.name}</td>
+                  <td className="num px-3 py-2.5 text-right text-ink-900">{fmtNum(m.sent_today)}</td>
+                  <td className="num px-3 py-2.5 text-right">
+                    <Link href={`/leads?assigned=${m.id}`} className="text-ink-900 hover:underline">
+                      {fmtNum(m.sent_week)}
+                    </Link>
+                  </td>
+                  <td className="num px-3 py-2.5 text-right">
+                    <Link href={`/leads?assigned=${m.id}&status=hot`} className="text-ink-900 hover:underline">
+                      {fmtNum(m.talking)}
+                    </Link>
+                  </td>
+                  <td className="num px-5 py-2.5 text-right">
+                    <Link
+                      href={`/leads?assigned=${m.id}&due=1`}
+                      className={m.due ? 'font-semibold text-[#C4242A] hover:underline' : 'text-ink-500 hover:underline'}
+                    >
+                      {fmtNum(m.due)}
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)] xl:items-start">
         <NextUp lead={next} queued={t.drafted} myWhatsapp={myWhatsapp} />

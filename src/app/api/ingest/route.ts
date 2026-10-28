@@ -178,7 +178,9 @@ export async function POST(req: Request) {
     const placeholders = cols.map((_, i) => `$${i + 3}`);
     const updates = cols.map((c) =>
       c === 'status'
-        ? `status = CASE WHEN leads.status IN ${STICKY} AND EXCLUDED.status <> 'do_not_contact' THEN leads.status ELSE EXCLUDED.status END`
+        ? `status = CASE WHEN leads.status IN ${STICKY} AND EXCLUDED.status <> 'do_not_contact' THEN leads.status
+                         WHEN leads.status IN ('sent','followup1','followup2') AND EXCLUDED.status IN ('new','drafted') THEN leads.status
+                         ELSE EXCLUDED.status END`
         : `${c} = EXCLUDED.${c}`,
     );
     const rows = await q<{ inserted: boolean }>(

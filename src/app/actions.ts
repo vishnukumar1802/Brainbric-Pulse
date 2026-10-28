@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { checkPassword, endSession, ensureBootstrapAdmin, hashPassword, requireAdmin, requirePermission, requireUser, startSession } from '@/lib/auth';
-import { homeFor, parsePermissions, PERMISSIONS, USERNAME_RE } from '@/lib/permissions';
+import { can, homeFor, parsePermissions, PERMISSIONS, USERNAME_RE } from '@/lib/permissions';
 import { one, q, setSetting } from '@/lib/db';
 import { saveFocus } from '@/lib/focus';
 import { logActivity } from '@/lib/leads';
@@ -77,6 +77,7 @@ export async function createUserAction(_: FormState, form: FormData): Promise<Fo
       email: OPTIONAL_EMAIL,
       password: PASSWORD,
       role: z.enum(['admin', 'member']),
+      signature: z.string().trim().max(1000),
     })
     .safeParse({
       name: form.get('name'),
@@ -84,6 +85,7 @@ export async function createUserAction(_: FormState, form: FormData): Promise<Fo
       email: form.get('email') ?? '',
       password: form.get('password'),
       role: form.get('role'),
+      signature: form.get('signature') ?? '',
     });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
@@ -91,13 +93,14 @@ export async function createUserAction(_: FormState, form: FormData): Promise<Fo
   if (await one('SELECT 1 FROM users WHERE lower(username) = $1', [d.username])) return { error: `The User ID "${d.username}" is taken.` };
   if (d.email && (await one('SELECT 1 FROM users WHERE lower(email) = $1', [d.email]))) return { error: 'Someone already has that email address.' };
 
-  await q('INSERT INTO users (name, username, email, password_hash, role, permissions) VALUES ($1, $2, $3, $4, $5, $6)', [
+  await q('INSERT INTO users (name, username, email, password_hash, role, permissions, signature) VALUES ($1, $2, $3, $4, $5, $6, $7)', [
     d.name,
     d.username,
     d.email || null,
     await hashPassword(d.password),
     d.role,
     permissionsFrom(form),
+    d.signature || null,
   ]);
   revalidatePath('/admin/users');
   return { ok: `Created ${d.name}. Copy the sign-in details now; the password will not be shown again.`, credentials: { username: d.username, password: d.password } };
@@ -115,6 +118,7 @@ export async function updateUserAction(_: FormState, form: FormData): Promise<Fo
       email: OPTIONAL_EMAIL,
       role: z.enum(['admin', 'member']),
       active: z.enum(['true', 'false']),
+      signature: z.string().trim().max(1000),
     })
     .safeParse({
       name: form.get('name'),
@@ -122,6 +126,7 @@ export async function updateUserAction(_: FormState, form: FormData): Promise<Fo
       email: form.get('email') ?? '',
       role: form.get('role'),
       active: form.get('active'),
+      signature: form.get('signature') ?? '',
     });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
@@ -133,13 +138,14 @@ export async function updateUserAction(_: FormState, form: FormData): Promise<Fo
     return { error: 'Someone else already has that email address.' };
   }
 
-  await q('UPDATE users SET name = $1, username = $2, email = $3, role = $4, active = $5, permissions = $6 WHERE id = $7', [
+  await q('UPDATE users SET name = $1, username = $2, email = $3, role = $4, active = $5, permissions = $6, signature = $7 WHERE id = $8', [
     d.name,
     d.username,
     d.email || null,
     d.role,
     d.active === 'true',
     permissionsFrom(form),
+    d.signature || null,
     id,
   ]);
   revalidatePath('/admin/users');
@@ -177,7 +183,10 @@ export async function saveSettingsAction(_: FormState, form: FormData): Promise<
   await requireAdmin();
   const whatsapp = String(form.get('my_whatsapp') ?? '').trim();
   if (whatsapp && !/^\+?[\d\s-]{8,20}$/.test(whatsapp)) return { error: 'Enter the WhatsApp number with country code, like +91 98765 43210.' };
+  const bcc = String(form.get('team_bcc') ?? '').trim().toLowerCase();
+  if (bcc && !z.string().email().safeParse(bcc).success) return { error: 'Enter a valid email for the team copy, or leave it empty.' };
   await setSetting('my_whatsapp', whatsapp);
+  await setSetting('team_bcc', bcc);
   revalidatePath('/', 'layout');
   return { ok: 'Settings saved.' };
 }
@@ -255,6 +264,8 @@ export async function trackActionAction(id: string, type: string): Promise<void>
   const labels: Record<string, string> = {
     outlook_draft: 'Opened the drafted email in Outlook',
     outlook_compose: 'Opened a new email in Outlook',
+    outlook_member: 'Opened the email in their own Outlook',
+    outlook_app: 'Opened the email in the Outlook app',
     whatsapp: 'Opened WhatsApp to message the lead',
     whatsapp_self: 'Sent the WhatsApp message to own number to review',
     source: 'Opened the source post',
@@ -294,4 +305,40 @@ export async function setFocusAction(_: FormState, form: FormData): Promise<Form
   });
   revalidatePath('/', 'layout');
   return { ok: 'Focus saved. The agents use it from their next run.' };
+}
+
+// ---------- Sending (team) ----------
+
+const NEXT_AFTER_SEND: Record<string, { status: string; label: string; followup: boolean }> = {
+  new: { status: 'sent', label: 'First email sent', followup: false },
+  drafted: { status: 'sent', label: 'First email sent', followup: false },
+  sent: { status: 'followup1', label: 'Follow-up 1 sent', followup: true },
+  followup1: { status: 'followup2', label: 'Follow-up 2 sent', followup: true },
+};
+
+/**
+ * One click after a team member sends from their own mailbox: moves the lead to the next stage, stamps the dates,
+ * and makes the sender its owner if it has none, so follow-ups land with them.
+ */
+export async function markSentAction(form: FormData): Promise<void> {
+  const me = await requireUser();
+  const id = String(form.get('id') ?? '');
+  const lead = await one<{ status: string; kind: string }>('SELECT status, kind FROM leads WHERE id = $1', [id]);
+  if (!lead) return;
+  if (!can(me, lead.kind === 'college' ? 'colleges' : 'leads')) return;
+  const next = NEXT_AFTER_SEND[lead.status];
+  if (!next) return;
+  await q(
+    `UPDATE leads SET status = $2,
+       first_contacted = COALESCE(first_contacted, CURRENT_DATE),
+       last_touch = CURRENT_DATE,
+       followups_sent = followups_sent + $3,
+       assigned_to = COALESCE(assigned_to, $4),
+       updated_at = now()
+     WHERE id = $1`,
+    [id, next.status, next.followup ? 1 : 0, me.id],
+  );
+  await logActivity(id, me, 'sent', `${next.label} by ${me.name}`);
+  revalidatePath(`/leads/${encodeURIComponent(id)}`);
+  revalidatePath('/', 'layout');
 }

@@ -102,6 +102,25 @@ function PasswordField({ id, name, label }: { id: string; name: string; label: s
   );
 }
 
+function SignatureField({ defaultValue }: { defaultValue: string }) {
+  return (
+    <div>
+      <label htmlFor="signature" className="label">
+        Email signature
+      </label>
+      <textarea
+        id="signature"
+        name="signature"
+        rows={4}
+        defaultValue={defaultValue}
+        className="input"
+        placeholder={'Regards,\nPriya S\nBusiness Development, Brainbric Innovations\n+91 98765 43210 | www.brainbric.com'}
+      />
+      <p className="mt-1 text-xs text-ink-500">Replaces the agent's sign-off when this person sends from their own Outlook.</p>
+    </div>
+  );
+}
+
 function PermissionChecks({ defaults, disabled = false }: { defaults: Permission[]; disabled?: boolean }) {
   return (
     <fieldset>
@@ -184,10 +203,12 @@ export function CreateUserForm() {
         <PasswordField id="new-password" name="password" label="Password" />
         <div>
           <label htmlFor="new-email" className="label">
-            Email (optional)
+            Work email (their Outlook)
           </label>
-          <input id="new-email" name="email" type="email" className="input" autoComplete="off" />
+          <input id="new-email" name="email" type="email" className="input" autoComplete="off" placeholder="e.g. priya@brainbric.com" />
+          <p className="mt-1 text-xs text-ink-500">The Outlook button opens a new email in this mailbox.</p>
         </div>
+        <SignatureField defaultValue="" />
         <RoleAndAccess role="member" permissions={DEFAULT_PERMISSIONS} />
         <Message state={state?.credentials ? undefined : state} />
         <Submit label="Add person" />
@@ -200,7 +221,7 @@ export function EditUserForm({
   user,
   isSelf,
 }: {
-  user: { id: number; name: string; username: string; email: string | null; role: 'admin' | 'member'; permissions: Permission[]; active: boolean };
+  user: { id: number; name: string; username: string; email: string | null; role: 'admin' | 'member'; permissions: Permission[]; signature: string | null; active: boolean };
   isSelf: boolean;
 }) {
   const [state, action] = useFormState(updateUserAction, undefined);
@@ -232,10 +253,12 @@ export function EditUserForm({
       </div>
       <div>
         <label htmlFor="email" className="label">
-          Email (optional)
+          Work email (their Outlook)
         </label>
         <input id="email" name="email" type="email" defaultValue={user.email ?? ''} className="input" autoComplete="off" />
+        <p className="mt-1 text-xs text-ink-500">The Outlook button opens a new email in this mailbox.</p>
       </div>
+      <SignatureField defaultValue={user.signature ?? ''} />
       <RoleAndAccess role={user.role} permissions={user.permissions} lockRole={isSelf} />
       <div>
         <span className="label">Sign-in</span>

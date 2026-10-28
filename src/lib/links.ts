@@ -43,3 +43,52 @@ export function hostOf(raw: string | null | undefined): string {
   if (!u) return '';
   return new URL(u).hostname.replace(/^www\./, '');
 }
+
+export type Sender = {
+  /** Admins open the agent's draft in the connected mailbox; team members compose in their own. */
+  isAdmin: boolean;
+  email: string | null;
+  signature: string | null;
+  bcc: string | null;
+};
+
+const SIGN_OFF = /^(warm(est)? regards|best regards|kind regards|regards|thanks( and regards)?|thank you|sincerely|cheers),?$/i;
+
+/** The agent's email with its sign-off replaced by the sender's own signature (kept as is when they have none). */
+export function withSignature(body: string | null | undefined, signature: string | null | undefined): string {
+  const text = (body ?? '').replace(/\r\n/g, '\n').trimEnd();
+  const sig = signature?.replace(/\r\n/g, '\n').trim();
+  if (!sig) return text;
+  const lines = text.split('\n');
+  let cut = -1;
+  for (let i = lines.length - 1; i >= Math.max(0, lines.length - 12); i--) {
+    if (SIGN_OFF.test(lines[i].trim()) || /\[TODO: signature\]/i.test(lines[i])) {
+      cut = i;
+      break;
+    }
+  }
+  const kept = (cut >= 0 ? lines.slice(0, cut) : lines).join('\n').trimEnd();
+  return `${kept}\n\n${sig}`;
+}
+
+/** A new message in the sender's own Outlook on the web; login_hint picks their account when several are signed in. */
+export function memberComposeUrl(sender: Sender, to: string | null | undefined, subject?: string | null, body?: string | null): string | null {
+  if (!to) return null;
+  const params = new URLSearchParams();
+  params.set('to', to);
+  if (subject) params.set('subject', subject);
+  if (body) params.set('body', body);
+  if (sender.bcc && sender.bcc.toLowerCase() !== sender.email?.toLowerCase()) params.set('bcc', sender.bcc);
+  if (sender.email) params.set('login_hint', sender.email);
+  return `https://outlook.office.com/mail/deeplink/compose?${params.toString().replace(/\+/g, '%20')}`;
+}
+
+/** The same message for the Outlook desktop or phone app (or whatever mail app is the default). */
+export function mailtoUrl(sender: Sender, to: string | null | undefined, subject?: string | null, body?: string | null): string | null {
+  if (!to) return null;
+  const parts: string[] = [];
+  if (subject) parts.push(`subject=${encodeURIComponent(subject)}`);
+  if (body) parts.push(`body=${encodeURIComponent(body)}`);
+  if (sender.bcc && sender.bcc.toLowerCase() !== sender.email?.toLowerCase()) parts.push(`bcc=${encodeURIComponent(sender.bcc)}`);
+  return `mailto:${encodeURIComponent(to)}${parts.length ? `?${parts.join('&')}` : ''}`;
+}

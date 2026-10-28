@@ -8,7 +8,7 @@ export const metadata = { title: 'Settings' };
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  const myWhatsapp = await getSetting('my_whatsapp');
+  const [myWhatsapp, teamBcc] = await Promise.all([getSetting('my_whatsapp'), getSetting('team_bcc')]);
   const host = headers().get('host') ?? 'your-portal.vercel.app';
   const proto = host.startsWith('localhost') ? 'http' : 'https';
 
@@ -26,7 +26,7 @@ export default async function SettingsPage() {
 
         {user.role === 'admin' && (
           <Card title="Workspace" note="Used across the portal for everyone.">
-            <WorkspaceForm myWhatsapp={myWhatsapp ?? ''} />
+            <WorkspaceForm myWhatsapp={myWhatsapp ?? ''} teamBcc={teamBcc ?? ''} />
           </Card>
         )}
 

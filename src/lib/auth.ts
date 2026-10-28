@@ -13,6 +13,7 @@ export type User = {
   email: string | null;
   role: 'admin' | 'member';
   permissions: Permission[];
+  signature: string | null;
   active: boolean;
   created_at: string;
   last_login: string | null;
@@ -20,7 +21,7 @@ export type User = {
 
 type UserRow = Omit<User, 'permissions'> & { permissions: string };
 
-export const USER_COLUMNS = 'id, name, username, email, role, permissions, active, created_at, last_login';
+export const USER_COLUMNS = 'id, name, username, email, role, permissions, signature, active, created_at, last_login';
 
 export function toUser(row: UserRow): User {
   return { ...row, permissions: parsePermissions(row.permissions) };
