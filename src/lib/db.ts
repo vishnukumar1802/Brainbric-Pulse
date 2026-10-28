@@ -139,6 +139,25 @@ CREATE TABLE IF NOT EXISTS agent_runs (
 );
 CREATE INDEX IF NOT EXISTS agent_runs_agent_idx ON agent_runs(agent, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS proposals (
+  id SERIAL PRIMARY KEY,
+  lead_id TEXT NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL DEFAULT 'software',
+  title TEXT NOT NULL,
+  sections JSONB NOT NULL DEFAULT '[]'::jsonb,
+  price_min INT,
+  price_max INT,
+  monthly_min INT,
+  monthly_max INT,
+  currency TEXT NOT NULL DEFAULT 'INR',
+  status TEXT NOT NULL DEFAULT 'draft',
+  source TEXT NOT NULL DEFAULT 'portal',
+  prepared_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS proposals_lead_idx ON proposals(lead_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL

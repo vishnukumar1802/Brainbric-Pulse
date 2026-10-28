@@ -2,13 +2,15 @@ import { headers } from 'next/headers';
 import { Card, PageHeader } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
 import { getSetting } from '@/lib/db';
+import { getPriceGuide } from '@/lib/proposals';
 import { OwnPasswordForm, WorkspaceForm } from './forms';
+import { PriceGuideForm } from './PriceGuideForm';
 
 export const metadata = { title: 'Settings' };
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  const [myWhatsapp, teamBcc] = await Promise.all([getSetting('my_whatsapp'), getSetting('team_bcc')]);
+  const [myWhatsapp, teamBcc, guide] = await Promise.all([getSetting('my_whatsapp'), getSetting('team_bcc'), getPriceGuide()]);
   const host = headers().get('host') ?? 'your-portal.vercel.app';
   const proto = host.startsWith('localhost') ? 'http' : 'https';
 
@@ -27,6 +29,16 @@ export default async function SettingsPage() {
         {user.role === 'admin' && (
           <Card title="Workspace" note="Used across the portal for everyone.">
             <WorkspaceForm myWhatsapp={myWhatsapp ?? ''} teamBcc={teamBcc ?? ''} />
+          </Card>
+        )}
+
+        {user.role === 'admin' && (
+          <Card
+            title="Price guide for proposals"
+            note="Tentative ranges used in every new client proposal and by the agents. Pitched at affordable startup rates that still cover delivery; adjust any time."
+            className="xl:col-span-2"
+          >
+            <PriceGuideForm rows={guide.rows} terms={guide.terms} />
           </Card>
         )}
 

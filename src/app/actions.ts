@@ -7,7 +7,8 @@ import { checkPassword, endSession, ensureBootstrapAdmin, hashPassword, requireA
 import { can, homeFor, parsePermissions, PERMISSIONS, USERNAME_RE } from '@/lib/permissions';
 import { one, q, setSetting } from '@/lib/db';
 import { saveFocus } from '@/lib/focus';
-import { logActivity } from '@/lib/leads';
+import { getLead, logActivity } from '@/lib/leads';
+import { collegeTemplate, getPriceGuide, getProposal, insertProposal, softwareTemplate } from '@/lib/proposals';
 import { SERVICES } from '@/lib/services';
 import { STATUSES } from '@/lib/status';
 
@@ -341,4 +342,107 @@ export async function markSentAction(form: FormData): Promise<void> {
   await logActivity(id, me, 'sent', `${next.label} by ${me.name}`);
   revalidatePath(`/leads/${encodeURIComponent(id)}`);
   revalidatePath('/', 'layout');
+}
+
+// ---------- Proposals ----------
+
+async function leadForUser(leadId: string) {
+  const me = await requireUser();
+  const lead = await getLead(leadId);
+  if (!lead || !can(me, lead.kind === 'college' ? 'colleges' : 'leads')) return null;
+  return { me, lead };
+}
+
+/** Anyone who can open the lead creates a proposal from the template, then edits it. */
+export async function createProposalAction(form: FormData): Promise<void> {
+  const ctx = await leadForUser(String(form.get('lead_id') ?? ''));
+  if (!ctx) return;
+  const { me, lead } = ctx;
+  const draft = lead.kind === 'college' ? collegeTemplate(lead, me.name) : softwareTemplate(lead, await getPriceGuide(), me.name);
+  const id = await insertProposal(draft);
+  await logActivity(lead.id, me, 'proposal', `Proposal created by ${me.name}`);
+  redirect(`/proposals/${id}`);
+}
+
+const ProposalIn = z.object({
+  id: z.coerce.number().int().positive(),
+  title: z.string().trim().min(1, 'Give the proposal a title.').max(200),
+  currency: z.enum(['INR', 'USD']),
+  price_min: z.union([z.literal(''), z.coerce.number().int().min(0)]),
+  price_max: z.union([z.literal(''), z.coerce.number().int().min(0)]),
+  monthly_min: z.union([z.literal(''), z.coerce.number().int().min(0)]),
+  monthly_max: z.union([z.literal(''), z.coerce.number().int().min(0)]),
+});
+
+export async function saveProposalAction(_: FormState, form: FormData): Promise<FormState> {
+  const parsed = ProposalIn.safeParse({
+    id: form.get('id'),
+    title: form.get('title'),
+    currency: form.get('currency'),
+    price_min: form.get('price_min') ?? '',
+    price_max: form.get('price_max') ?? '',
+    monthly_min: form.get('monthly_min') ?? '',
+    monthly_max: form.get('monthly_max') ?? '',
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+  const existing = await getProposal(d.id);
+  if (!existing || !(await leadForUser(existing.lead_id))) return { error: 'You cannot edit this proposal.' };
+  const num = (v: number | '') => (v === '' ? null : v);
+  if (num(d.price_min) != null && num(d.price_max) != null && (d.price_min as number) > (d.price_max as number)) {
+    return { error: 'The lowest price is higher than the highest price.' };
+  }
+  const sections = existing.sections.map((s) => ({ ...s, body: String(form.get(`section_${s.key}`) ?? s.body).trim() }));
+  await q(
+    `UPDATE proposals SET title = $2, sections = $3, currency = $4, price_min = $5, price_max = $6, monthly_min = $7, monthly_max = $8, updated_at = now()
+     WHERE id = $1`,
+    [d.id, d.title, JSON.stringify(sections), d.currency, num(d.price_min), num(d.price_max), num(d.monthly_min), num(d.monthly_max)],
+  );
+  revalidatePath(`/proposals/${d.id}`);
+  return { ok: 'Saved.' };
+}
+
+/** Records that the proposal went to the client and moves the lead to "Proposal sent". */
+export async function markProposalSentAction(form: FormData): Promise<void> {
+  const id = Number(form.get('id'));
+  const p = await getProposal(id);
+  if (!p) return;
+  const ctx = await leadForUser(p.lead_id);
+  if (!ctx) return;
+  await q("UPDATE proposals SET status = 'sent', updated_at = now() WHERE id = $1", [id]);
+  await q(
+    `UPDATE leads SET status = CASE WHEN status IN ('won','lost','scheduled','delivered','do_not_contact') THEN status ELSE 'proposal' END,
+       last_touch = CURRENT_DATE, assigned_to = COALESCE(assigned_to, $2), updated_at = now() WHERE id = $1`,
+    [p.lead_id, ctx.me.id],
+  );
+  await logActivity(p.lead_id, ctx.me, 'proposal_sent', `Proposal sent by ${ctx.me.name}`);
+  revalidatePath(`/proposals/${id}`);
+  revalidatePath(`/leads/${encodeURIComponent(p.lead_id)}`);
+}
+
+/** Admins edit the price guide used by new proposals and by the agents. */
+export async function savePriceGuideAction(_: FormState, form: FormData): Promise<FormState> {
+  await requireAdmin();
+  const { rows } = await getPriceGuide();
+  const n = (k: string) => {
+    const v = Number(String(form.get(k) ?? '').replace(/[^\d]/g, ''));
+    return Number.isFinite(v) ? v : 0;
+  };
+  const next = rows.map((r) => {
+    const out = {
+      ...r,
+      inr: [n(`${r.slug}.inr0`), n(`${r.slug}.inr1`)] as [number, number],
+      usd: [n(`${r.slug}.usd0`), n(`${r.slug}.usd1`)] as [number, number],
+      timeline: String(form.get(`${r.slug}.timeline`) ?? r.timeline).trim() || r.timeline,
+    };
+    if (r.monthly_inr) out.monthly_inr = [n(`${r.slug}.minr0`), n(`${r.slug}.minr1`)];
+    if (r.monthly_usd) out.monthly_usd = [n(`${r.slug}.musd0`), n(`${r.slug}.musd1`)];
+    return out;
+  });
+  const bad = next.find((r) => r.inr[0] > r.inr[1] || r.usd[0] > r.usd[1]);
+  if (bad) return { error: `Check "${bad.label}": the lowest price is higher than the highest.` };
+  await setSetting('price_guide', JSON.stringify(next));
+  await setSetting('price_terms', String(form.get('terms') ?? '').trim());
+  revalidatePath('/settings');
+  return { ok: 'Price guide saved. New proposals and the agents use it from now on.' };
 }

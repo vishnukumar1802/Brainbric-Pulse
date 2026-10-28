@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Download } from "lucide-react";
-import { updateLeadAction } from "@/app/actions";
+import { ArrowLeft, Download, FilePlus } from "lucide-react";
+import { createProposalAction, updateLeadAction } from "@/app/actions";
 import { CopyButton, LeadActions } from "@/components/LeadActions";
 import { Markdown } from "@/components/Markdown";
 import { CompanyMark, StageTrack } from "@/components/rich";
@@ -29,6 +29,8 @@ import {
 } from "@/lib/colleges";
 import { fmtDate, fmtDateTime, fmtNum } from "@/lib/format";
 import { getLead, leadActivities } from "@/lib/leads";
+import { fmtRange } from "@/lib/pricing";
+import { listProposals } from "@/lib/proposals";
 import { hostOf, normalizePhone, safeHttpUrl } from "@/lib/links";
 import { STATUSES } from "@/lib/status";
 import { NoteForm } from "./NoteForm";
@@ -100,13 +102,14 @@ export default async function LeadPage({ params }: { params: { id: string } }) {
   const lead = await getLead(id);
   if (!lead) notFound();
   if (!can(me, lead.kind === "college" ? "colleges" : "leads")) redirect(homeFor(me));
-  const [activities, users, agent, myWhatsapp] = await Promise.all([
+  const [activities, users, agent, myWhatsapp, proposals] = await Promise.all([
     leadActivities(id),
     q<{ id: number; name: string }>(
       "SELECT id, name FROM users WHERE active ORDER BY name",
     ),
     lead.agent ? getAgent(lead.agent) : Promise.resolve(null),
     getSetting("my_whatsapp"),
+    listProposals(id),
   ]);
   const wa = normalizePhone(lead.whatsapp || lead.phone);
   const title =
@@ -393,6 +396,59 @@ export default async function LeadPage({ params }: { params: { id: string } }) {
         </div>
 
         <div className="flex min-w-0 flex-col gap-4">
+          <Card
+            flush
+            title="Proposals"
+            note={
+              isCollege
+                ? "A personalised version of the Industry Readiness proposal for this college."
+                : "A branded proposal with scope, timeline and a tentative price range."
+            }
+            action={
+              <form action={createProposalAction}>
+                <input type="hidden" name="lead_id" value={lead.id} />
+                <button type="submit" className="btn-ghost h-7 px-2.5 text-xs">
+                  <FilePlus size={13} className="text-ink-500" />{" "}
+                  {proposals.length ? "New version" : "Create proposal"}
+                </button>
+              </form>
+            }
+          >
+            {proposals.length ? (
+              <ul className="border-t border-paper-line">
+                {proposals.map((p) => (
+                  <li
+                    key={p.id}
+                    className="flex items-center justify-between gap-3 border-b border-paper-rule px-5 py-2.5 last:border-b-0"
+                  >
+                    <Link
+                      href={`/proposals/${p.id}`}
+                      className="min-w-0 hover:underline"
+                    >
+                      <span className="block truncate text-sm font-medium text-ink-950">
+                        {p.title}
+                      </span>
+                      <span className="block text-xs text-ink-500">
+                        {fmtRange(p.price_min, p.price_max, p.currency)} ·{" "}
+                        {p.source === "agent" ? "by the agent" : p.prepared_by} ·{" "}
+                        {fmtDate(p.created_at)}
+                      </span>
+                    </Link>
+                    <span
+                      className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${p.status === "sent" ? "bg-[#DCFAE5] text-[#0B3D1C]" : "bg-flame-tint text-flame-ink"}`}
+                    >
+                      {p.status === "sent" ? "Sent" : "Draft"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="px-5 pb-5 text-sm text-ink-500">
+                No proposal yet. Create one, check it, then download the PDF.
+              </p>
+            )}
+          </Card>
+
           <Card title="Where this lead came from">
             <dl className="grid gap-4">
               <Field label="Source">

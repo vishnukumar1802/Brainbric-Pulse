@@ -2,7 +2,7 @@ import { createHash } from 'crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { agentAuthorized } from '@/lib/agentAuth';
-import { q } from '@/lib/db';
+import { one, q } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,6 +63,23 @@ const DocIn = z.object({
   body: z.string().max(400000),
 });
 
+const ProposalIn = z.object({
+  /** The lead it belongs to: its id, or its source_url / email when the agent does not know the id. */
+  lead_id: z.string().trim().max(200).optional(),
+  source_url: z.string().trim().max(2000).optional(),
+  email: z.string().trim().max(320).optional(),
+  title: z.string().trim().min(1).max(200),
+  sections: z
+    .array(z.object({ heading: z.string().trim().min(1).max(120), body: z.string().max(8000) }))
+    .min(1)
+    .max(12),
+  currency: z.enum(['INR', 'USD']).default('INR'),
+  price_min: z.coerce.number().int().min(0).nullish(),
+  price_max: z.coerce.number().int().min(0).nullish(),
+  monthly_min: z.coerce.number().int().min(0).nullish(),
+  monthly_max: z.coerce.number().int().min(0).nullish(),
+});
+
 const Payload = z.object({
   agent: z.string().trim().regex(/^[a-z0-9][a-z0-9-]{1,48}$/, 'agent must be a lowercase slug like lead-hunter'),
   agent_name: z.string().trim().max(80).optional(),
@@ -77,6 +94,7 @@ const Payload = z.object({
     .optional(),
   leads: z.array(LeadIn).max(200).default([]),
   documents: z.array(DocIn).max(50).default([]),
+  proposals: z.array(ProposalIn).max(20).default([]),
   // Only change leads that already exist (matched by id, email or source_url): status, plus a note added on top.
   update_only: z.boolean().default(false),
 });
@@ -215,12 +233,51 @@ export async function POST(req: Request) {
     );
   }
 
+  // Proposals the agent wrote for leads (usually when a lead turns interested). Each is a new version on that lead.
+  let proposals = 0;
+  const proposalsNotFound: string[] = [];
+  for (const pr of p.proposals) {
+    const lead = await one<{ id: string; kind: string }>(
+      `SELECT id, kind FROM leads
+       WHERE ($1::text IS NOT NULL AND id = $1) OR ($2::text IS NOT NULL AND source_url = $2) OR ($3::text IS NOT NULL AND lower(email) = lower($3))
+       LIMIT 1`,
+      [pr.lead_id || null, pr.source_url || null, pr.email || null],
+    );
+    if (!lead) {
+      proposalsNotFound.push(pr.lead_id || pr.source_url || pr.email || pr.title);
+      continue;
+    }
+    const sections = pr.sections.map((s, i) => ({
+      key: s.heading.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `section-${i + 1}`,
+      heading: s.heading,
+      body: s.body,
+    }));
+    await q(
+      `INSERT INTO proposals (lead_id, kind, title, sections, price_min, price_max, monthly_min, monthly_max, currency, source, prepared_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'agent', $10)`,
+      [
+        lead.id,
+        lead.kind === 'college' ? 'college' : 'software',
+        pr.title,
+        JSON.stringify(sections),
+        pr.price_min ?? null,
+        pr.price_max ?? null,
+        pr.monthly_min ?? null,
+        pr.monthly_max ?? null,
+        pr.currency,
+        p.agent_name || p.agent,
+      ],
+    );
+    await q('INSERT INTO activities (lead_id, actor, type, note) VALUES ($1, $2, $3, $4)', [lead.id, p.agent_name || p.agent, 'proposal', 'Proposal drafted by the agent']);
+    proposals++;
+  }
+
   if (p.run) {
     await q('INSERT INTO agent_runs (agent, status, summary, stats) VALUES ($1, $2, $3, $4)', [
       p.agent,
       p.run.status,
       p.run.summary ?? null,
-      JSON.stringify({ ...(p.run.stats ?? {}), leads_created: created, leads_updated: updated, documents: p.documents.length }),
+      JSON.stringify({ ...(p.run.stats ?? {}), leads_created: created, leads_updated: updated, documents: p.documents.length, proposals }),
     ]);
   }
 
@@ -229,6 +286,8 @@ export async function POST(req: Request) {
     leads_created: created,
     leads_updated: updated,
     documents: p.documents.length,
+    proposals,
+    ...(proposalsNotFound.length ? { proposals_not_found: proposalsNotFound } : {}),
     ...(p.update_only ? { not_found: notFound } : {}),
   });
 }
