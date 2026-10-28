@@ -1,3 +1,4 @@
+import { headers } from 'next/headers';
 import { MobileNav } from '@/components/MobileNav';
 import { SenderProvider } from '@/components/SenderContext';
 import { SidebarContent } from '@/components/Sidebar';
@@ -8,6 +9,13 @@ import { getFocus } from '@/lib/focus';
 import { focusLabel } from '@/lib/services';
 
 export const dynamic = 'force-dynamic';
+
+function portalBaseUrl(): string {
+  const h = headers();
+  const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'brainbric-pulse.vercel.app';
+  const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
+  return `${proto}://${host}`;
+}
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
@@ -28,6 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     email: user.email,
     signature: user.signature,
     bcc: teamBcc || firstAdmin?.email || null,
+    baseUrl: portalBaseUrl(),
   };
   const sidebar = <SidebarContent user={user} agents={agents} counts={counts ?? { drafted: 0, hot: 0, colleges: 0 }} focus={focusLabel(focus)} />;
 

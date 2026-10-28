@@ -50,6 +50,8 @@ export type Lead = {
   domain: string | null;
   best_time: string | null;
   niche: string | null;
+  /** Link code of the newest proposal whose client link is on. */
+  proposal_token?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -101,7 +103,7 @@ export async function listLeads(f: LeadFilters = {}, limit = 500): Promise<Lead[
   }
   params.push(limit);
   return q<Lead>(
-    `SELECT l.*, u.name AS assignee_name FROM leads l LEFT JOIN users u ON u.id = l.assigned_to
+    `SELECT l.*, u.name AS assignee_name, (SELECT pr.share_token FROM proposals pr WHERE pr.lead_id = l.id AND pr.share_enabled AND pr.share_token IS NOT NULL ORDER BY pr.created_at DESC LIMIT 1) AS proposal_token FROM leads l LEFT JOIN users u ON u.id = l.assigned_to
      ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
      ORDER BY CASE WHEN l.status = 'drafted' THEN 0 WHEN l.status IN ('replied','interested','call_booked','proposal') THEN 1 ELSE 2 END,
               l.updated_at DESC
@@ -112,7 +114,7 @@ export async function listLeads(f: LeadFilters = {}, limit = 500): Promise<Lead[
 
 export async function getLead(id: string): Promise<Lead | null> {
   return one<Lead>(
-    'SELECT l.*, u.name AS assignee_name FROM leads l LEFT JOIN users u ON u.id = l.assigned_to WHERE l.id = $1',
+    'SELECT l.*, u.name AS assignee_name, (SELECT pr.share_token FROM proposals pr WHERE pr.lead_id = l.id AND pr.share_enabled AND pr.share_token IS NOT NULL ORDER BY pr.created_at DESC LIMIT 1) AS proposal_token FROM leads l LEFT JOIN users u ON u.id = l.assigned_to WHERE l.id = $1',
     [id],
   );
 }
@@ -197,7 +199,7 @@ export async function openByCountry(): Promise<{ country: string; n: number }[]>
 /** The drafted lead to send first: best fit, then oldest draft. */
 export async function nextUp(): Promise<Lead | null> {
   return one<Lead>(
-    `SELECT l.*, u.name AS assignee_name FROM leads l LEFT JOIN users u ON u.id = l.assigned_to
+    `SELECT l.*, u.name AS assignee_name, (SELECT pr.share_token FROM proposals pr WHERE pr.lead_id = l.id AND pr.share_enabled AND pr.share_token IS NOT NULL ORDER BY pr.created_at DESC LIMIT 1) AS proposal_token FROM leads l LEFT JOIN users u ON u.id = l.assigned_to
      WHERE l.status = 'drafted' AND l.kind <> 'college' ORDER BY COALESCE(l.fit_score, 0) DESC, l.created_at ASC LIMIT 1`,
   );
 }

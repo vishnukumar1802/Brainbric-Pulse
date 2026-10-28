@@ -1,4 +1,5 @@
 import 'server-only';
+import { randomBytes } from 'crypto';
 import { estValue, programInfo, TIERS } from './colleges';
 import { getSetting, one, q } from './db';
 import type { Lead } from './leads';
@@ -20,6 +21,10 @@ export type Proposal = {
   status: 'draft' | 'sent';
   source: 'portal' | 'agent';
   prepared_by: string | null;
+  share_token: string | null;
+  share_enabled: boolean;
+  views: number;
+  last_viewed_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -61,11 +66,17 @@ export async function getProposal(id: number): Promise<Proposal | null> {
   return p ? normalize(p) : null;
 }
 
-export async function insertProposal(p: Omit<Proposal, 'id' | 'status' | 'created_at' | 'updated_at'>): Promise<number> {
+type NewProposal = Omit<Proposal, 'id' | 'status' | 'created_at' | 'updated_at' | 'share_token' | 'share_enabled' | 'views' | 'last_viewed_at'>;
+
+export function newShareToken(): string {
+  return randomBytes(18).toString('base64url');
+}
+
+export async function insertProposal(p: NewProposal): Promise<number> {
   const row = await one<{ id: number }>(
-    `INSERT INTO proposals (lead_id, kind, title, sections, price_min, price_max, monthly_min, monthly_max, currency, source, prepared_by)
-     VALUES ($1, $2, $3, $4::text::jsonb, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
-    [p.lead_id, p.kind, p.title, JSON.stringify(p.sections), p.price_min, p.price_max, p.monthly_min, p.monthly_max, p.currency, p.source, p.prepared_by],
+    `INSERT INTO proposals (lead_id, kind, title, sections, price_min, price_max, monthly_min, monthly_max, currency, source, prepared_by, share_token)
+     VALUES ($1, $2, $3, $4::text::jsonb, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+    [p.lead_id, p.kind, p.title, JSON.stringify(p.sections), p.price_min, p.price_max, p.monthly_min, p.monthly_max, p.currency, p.source, p.prepared_by, newShareToken()],
   );
   return row!.id;
 }
@@ -109,7 +120,7 @@ const TECH: Record<string, string> = {
   'erp-crm': 'Web application (React / Node.js / PostgreSQL) or customisation of an open-source ERP, hosted in the cloud.',
 };
 
-export function softwareTemplate(lead: Lead, guide: { rows: PriceRow[]; terms: string }, preparedBy: string): Omit<Proposal, 'id' | 'status' | 'created_at' | 'updated_at'> {
+export function softwareTemplate(lead: Lead, guide: { rows: PriceRow[]; terms: string }, preparedBy: string): NewProposal {
   const row = priceRowFor(lead.niche?.startsWith('SaaS:') ? 'saas-product' : `${lead.niche ?? ''} ${lead.service_fit ?? ''} ${lead.requirement ?? ''}`, guide.rows);
   const currency = currencyFor(lead.country);
   const range = currency === 'INR' ? row.inr : row.usd;
@@ -172,7 +183,7 @@ export function softwareTemplate(lead: Lead, guide: { rows: PriceRow[]; terms: s
 
 // ---------- College template ----------
 
-export function collegeTemplate(lead: Lead, preparedBy: string): Omit<Proposal, 'id' | 'status' | 'created_at' | 'updated_at'> {
+export function collegeTemplate(lead: Lead, preparedBy: string): NewProposal {
   const program = programInfo(lead.program);
   const tier = lead.tier ? TIERS[lead.tier] : null;
   const value = estValue(lead);
@@ -197,4 +208,34 @@ export function collegeTemplate(lead: Lead, preparedBy: string): Omit<Proposal, 
     source: 'portal',
     prepared_by: preparedBy,
   };
+}
+
+/** Gives older proposals a link the first time it is needed. */
+export async function ensureShareToken(id: number): Promise<string> {
+  const row = await one<{ share_token: string | null }>('SELECT share_token FROM proposals WHERE id = $1', [id]);
+  if (row?.share_token) return row.share_token;
+  const token = newShareToken();
+  await q('UPDATE proposals SET share_token = $2 WHERE id = $1 AND share_token IS NULL', [id, token]);
+  return token;
+}
+
+/** The proposal behind a client link, only while its link is switched on. */
+export async function proposalByToken(token: string): Promise<Proposal | null> {
+  if (!/^[A-Za-z0-9_-]{16,64}$/.test(token)) return null;
+  const p = await one<Proposal>('SELECT * FROM proposals WHERE share_token = $1 AND share_enabled', [token]);
+  return p ? normalize(p) : null;
+}
+
+/** Counts a client view; the lead's history gets one line per visit (views within 30 minutes count once). */
+export async function recordClientView(p: Proposal): Promise<void> {
+  const recent = p.last_viewed_at && Date.now() - new Date(p.last_viewed_at).getTime() < 30 * 60 * 1000;
+  await q('UPDATE proposals SET views = views + 1, last_viewed_at = now() WHERE id = $1', [p.id]);
+  if (!recent) {
+    await q('INSERT INTO activities (lead_id, actor, type, note) VALUES ($1, $2, $3, $4)', [
+      p.lead_id,
+      'Client',
+      'proposal_viewed',
+      `Client opened the proposal "${p.title}"`,
+    ]);
+  }
 }

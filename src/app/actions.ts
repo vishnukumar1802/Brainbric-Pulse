@@ -8,7 +8,7 @@ import { can, homeFor, parsePermissions, PERMISSIONS, USERNAME_RE } from '@/lib/
 import { one, q, setSetting } from '@/lib/db';
 import { saveFocus } from '@/lib/focus';
 import { getLead, logActivity } from '@/lib/leads';
-import { collegeTemplate, getPriceGuide, getProposal, insertProposal, softwareTemplate } from '@/lib/proposals';
+import { collegeTemplate, ensureShareToken, getPriceGuide, getProposal, insertProposal, softwareTemplate } from '@/lib/proposals';
 import { SERVICES } from '@/lib/services';
 import { STATUSES } from '@/lib/status';
 
@@ -398,8 +398,10 @@ export async function saveProposalAction(_: FormState, form: FormData): Promise<
      WHERE id = $1`,
     [d.id, d.title, JSON.stringify(sections), d.currency, num(d.price_min), num(d.price_max), num(d.monthly_min), num(d.monthly_max)],
   );
+  await ensureShareToken(d.id);
   revalidatePath(`/proposals/${d.id}`);
-  return { ok: 'Saved.' };
+  revalidatePath(`/leads/${encodeURIComponent(existing.lead_id)}`);
+  return { ok: 'Saved. The client link in your emails now shows this version.' };
 }
 
 /** Records that the proposal went to the client and moves the lead to "Proposal sent". */
@@ -445,4 +447,18 @@ export async function savePriceGuideAction(_: FormState, form: FormData): Promis
   await setSetting('price_terms', String(form.get('terms') ?? '').trim());
   revalidatePath('/settings');
   return { ok: 'Price guide saved. New proposals and the agents use it from now on.' };
+}
+
+/** Switches a proposal's client link off (the link stops working) or back on. */
+export async function setProposalLinkAction(form: FormData): Promise<void> {
+  const id = Number(form.get('id'));
+  const on = form.get('on') === 'true';
+  const p = await getProposal(id);
+  if (!p) return;
+  const ctx = await leadForUser(p.lead_id);
+  if (!ctx) return;
+  await q('UPDATE proposals SET share_enabled = $2, updated_at = now() WHERE id = $1', [id, on]);
+  await logActivity(p.lead_id, ctx.me, 'proposal_link', on ? `Client link turned on by ${ctx.me.name}` : `Client link turned off by ${ctx.me.name}`);
+  revalidatePath(`/proposals/${id}`);
+  revalidatePath(`/leads/${encodeURIComponent(p.lead_id)}`);
 }

@@ -50,6 +50,8 @@ export type Sender = {
   email: string | null;
   signature: string | null;
   bcc: string | null;
+  /** The portal's own address, for client proposal links. */
+  baseUrl: string;
 };
 
 const SIGN_OFF = /^(warm(est)? regards|best regards|kind regards|regards|thanks( and regards)?|thank you|sincerely|cheers),?$/i;
@@ -91,4 +93,30 @@ export function mailtoUrl(sender: Sender, to: string | null | undefined, subject
   if (body) parts.push(`body=${encodeURIComponent(body)}`);
   if (sender.bcc && sender.bcc.toLowerCase() !== sender.email?.toLowerCase()) parts.push(`bcc=${encodeURIComponent(sender.bcc)}`);
   return `mailto:${encodeURIComponent(to)}${parts.length ? `?${parts.join('&')}` : ''}`;
+}
+
+export function proposalUrl(baseUrl: string, token: string | null | undefined): string | null {
+  return token ? `${baseUrl.replace(/\/$/, '')}/p/${token}` : null;
+}
+
+const ATTACHED = /\b(i have |i've |please find )?(our |the )?(attached (the |our )?proposal( document)?|proposal( document)? (is |has been )?attached)\.?/gi;
+
+/**
+ * Puts the client's proposal link into a message: "attached" wording becomes "linked below", and the link goes
+ * just before the sign-off (or at the end when there is none).
+ */
+export function withProposalLink(body: string | null | undefined, url: string | null): string {
+  const text = (body ?? '').replace(/\r\n/g, '\n').trimEnd();
+  if (!url) return text;
+  if (text.includes(url)) return text;
+  const line = `You can view and download our proposal here: ${url}`;
+  const cleaned = text.replace(ATTACHED, 'our proposal is linked below.');
+  const lines = cleaned.split('\n');
+  for (let i = lines.length - 1; i >= Math.max(0, lines.length - 12); i--) {
+    if (SIGN_OFF.test(lines[i].trim()) || /\[TODO: signature\]/i.test(lines[i])) {
+      const before = lines.slice(0, i).join('\n').trimEnd();
+      return `${before}\n\n${line}\n\n${lines.slice(i).join('\n')}`;
+    }
+  }
+  return `${cleaned}\n\n${line}`;
 }

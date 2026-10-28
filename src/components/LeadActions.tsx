@@ -4,7 +4,7 @@ import { Check, CheckCheck, Copy, ExternalLink, Mail, MessageCircle, Monitor, Sm
 import { useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { markSentAction, trackActionAction } from '@/app/actions';
-import { mailtoUrl, memberComposeUrl, outlookComposeUrl, safeHttpUrl, whatsappUrl, withSignature, type Sender } from '@/lib/links';
+import { mailtoUrl, memberComposeUrl, outlookComposeUrl, proposalUrl, safeHttpUrl, whatsappUrl, withProposalLink, withSignature, type Sender } from '@/lib/links';
 import { useSender } from './SenderContext';
 
 type LeadLike = {
@@ -20,6 +20,7 @@ type LeadLike = {
   bid_text: string | null;
   source_url: string | null;
   source_platform: string | null;
+  proposal_token?: string | null;
 };
 
 function track(id: string, type: string) {
@@ -27,20 +28,23 @@ function track(id: string, type: string) {
   void trackActionAction(id, type).catch(() => undefined);
 }
 
-function waText(l: LeadLike): string {
-  return l.whatsapp_message || l.email_body || '';
+function waText(l: LeadLike, sender?: Sender): string {
+  const text = l.whatsapp_message || l.email_body || '';
+  return sender ? withProposalLink(text, proposalUrl(sender.baseUrl, l.proposal_token)) : text;
 }
 
 /** Where the email button goes for this person: the agent's draft for admins, a new message in their own mailbox for team members. */
 function mailLinks(lead: LeadLike, sender: Sender) {
+  const link = proposalUrl(sender.baseUrl, lead.proposal_token);
   if (sender.isAdmin) {
+    // The agent's Outlook draft cannot be changed from here, so once a proposal exists the new email (with its link) leads.
     return {
-      draft: safeHttpUrl(lead.outlook_link),
-      compose: outlookComposeUrl(lead.email, lead.email_subject, lead.email_body),
+      draft: link ? null : safeHttpUrl(lead.outlook_link),
+      compose: outlookComposeUrl(lead.email, lead.email_subject, withProposalLink(lead.email_body, link)),
       app: null as string | null,
     };
   }
-  const body = withSignature(lead.email_body, sender.signature);
+  const body = withSignature(withProposalLink(lead.email_body, link), sender.signature);
   return {
     draft: null as string | null,
     compose: memberComposeUrl(sender, lead.email, lead.email_subject, body),
@@ -107,8 +111,8 @@ export function CopyButton({ text, label, leadId, type, className = 'btn-ghost' 
 export function LeadActions({ lead, myWhatsapp }: { lead: LeadLike; myWhatsapp: string | null }) {
   const sender = useSender();
   const { draft, compose, app } = mailLinks(lead, sender);
-  const wa = whatsappUrl(lead.whatsapp || lead.phone, waText(lead));
-  const waSelf = waText(lead) ? whatsappUrl(myWhatsapp, waText(lead)) : null;
+  const wa = whatsappUrl(lead.whatsapp || lead.phone, waText(lead, sender));
+  const waSelf = waText(lead, sender) ? whatsappUrl(myWhatsapp, waText(lead, sender)) : null;
   const source = safeHttpUrl(lead.source_url);
   const hasMail = Boolean(draft || compose);
 
@@ -129,7 +133,13 @@ export function LeadActions({ lead, myWhatsapp }: { lead: LeadLike; myWhatsapp: 
           title={sender.isAdmin ? undefined : `Opens a new email in ${sender.email ?? 'your'} Outlook with your signature`}
         >
           <Mail size={15} className={draft ? 'text-[#0F6CBD]' : ''} />{' '}
-          {sender.isAdmin ? (draft ? 'New email in Outlook' : 'Write email in Outlook') : 'Send from my Outlook'}
+          {sender.isAdmin
+            ? draft
+              ? 'New email in Outlook'
+              : lead.proposal_token
+                ? 'Email with proposal link'
+                : 'Write email in Outlook'
+            : 'Send from my Outlook'}
         </a>
       )}
       {app && (
@@ -163,7 +173,7 @@ export function LeadQuickActions({ lead, compact = false }: { lead: LeadLike; my
   const sender = useSender();
   const { draft, compose } = mailLinks(lead, sender);
   const mail = draft || compose;
-  const wa = whatsappUrl(lead.whatsapp || lead.phone, waText(lead));
+  const wa = whatsappUrl(lead.whatsapp || lead.phone, waText(lead, sender));
   const source = safeHttpUrl(lead.source_url);
   const icon = `inline-flex h-7 items-center gap-1.5 rounded-md border border-[#D9D5D1] bg-white text-xs font-medium text-ink-900 transition-colors hover:border-ink-400 hover:bg-paper ${compact ? 'px-1.5 xl:px-2' : 'px-2'}`;
   // In compact mode the label hides below xl; the icon, tooltip and screen-reader text stay.

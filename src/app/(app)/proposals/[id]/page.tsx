@@ -1,14 +1,16 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { ArrowLeft, Download } from 'lucide-react';
-import { markProposalSentAction } from '@/app/actions';
+import { markProposalSentAction, setProposalLinkAction } from '@/app/actions';
+import { CopyButton } from '@/components/LeadActions';
 import { Card, PageHeader } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
 import { fmtAgo, fmtDateTime } from '@/lib/format';
 import { getLead } from '@/lib/leads';
 import { can, homeFor } from '@/lib/permissions';
 import { fmtRange } from '@/lib/pricing';
-import { getProposal } from '@/lib/proposals';
+import { ensureShareToken, getProposal } from '@/lib/proposals';
 import { ProposalForm } from './ProposalForm';
 
 export const metadata = { title: 'Proposal' };
@@ -20,6 +22,10 @@ export default async function ProposalPage({ params }: { params: { id: string } 
   const lead = await getLead(proposal.lead_id);
   if (!lead) notFound();
   if (!can(me, lead.kind === 'college' ? 'colleges' : 'leads')) redirect(homeFor(me));
+  const token = proposal.share_token ?? (await ensureShareToken(proposal.id));
+  const h = headers();
+  const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'brainbric-pulse.vercel.app';
+  const link = `${h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https')}://${host}/p/${token}`;
 
   return (
     <>
@@ -54,6 +60,48 @@ export default async function ProposalPage({ params }: { params: { id: string } 
         </Card>
 
         <div className="flex min-w-0 flex-col gap-4">
+          <Card
+            title="Client link"
+            note={
+              proposal.share_enabled
+                ? 'Added automatically to the email and WhatsApp text for this lead. The client opens it without signing in.'
+                : 'Turned off: the link no longer opens and is left out of new emails.'
+            }
+          >
+            {proposal.share_enabled ? (
+              <>
+                <div className="break-all rounded-md border border-paper-line bg-paper px-3 py-2 font-mono text-xs text-ink-900">{link}</div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <CopyButton text={link} label="Copy link" />
+                  <a href={link} target="_blank" rel="noopener noreferrer" className="btn-ghost">
+                    Open as client
+                  </a>
+                  <form action={setProposalLinkAction}>
+                    <input type="hidden" name="id" value={proposal.id} />
+                    <input type="hidden" name="on" value="false" />
+                    <button type="submit" className="btn-ghost text-[#C4242A]">
+                      Turn off link
+                    </button>
+                  </form>
+                </div>
+              </>
+            ) : (
+              <form action={setProposalLinkAction}>
+                <input type="hidden" name="id" value={proposal.id} />
+                <input type="hidden" name="on" value="true" />
+                <button type="submit" className="btn-ghost">
+                  Turn link back on
+                </button>
+              </form>
+            )}
+            <p className="mt-3 text-sm text-ink-700">
+              {proposal.views
+                ? `Opened by the client ${proposal.views} ${proposal.views === 1 ? 'time' : 'times'}, last ${fmtAgo(proposal.last_viewed_at)}.`
+                : 'Not opened by the client yet.'}
+            </p>
+            <p className="mt-1 text-xs text-ink-500">Your own views while signed in are not counted. Opening it here as client while signed in also does not count.</p>
+          </Card>
+
           <Card title="Status">
             <div className="text-sm text-ink-900">
               {proposal.status === 'sent' ? (
@@ -69,7 +117,7 @@ export default async function ProposalPage({ params }: { params: { id: string } 
             <ol className="mt-4 list-decimal space-y-1 pl-5 text-sm text-ink-700">
               <li>Check and edit the text, then Save.</li>
               <li>Click Download PDF and choose &ldquo;Save as PDF&rdquo;.</li>
-              <li>Attach it to your email from the lead page.</li>
+              <li>Or skip the PDF: the client link is already in the lead&apos;s email.</li>
               <li>Click Mark proposal sent.</li>
             </ol>
             {proposal.status !== 'sent' && (

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { agentAuthorized } from '@/lib/agentAuth';
 import { one, q } from '@/lib/db';
+import { newShareToken } from '@/lib/proposals';
 
 export const dynamic = 'force-dynamic';
 
@@ -253,8 +254,8 @@ export async function POST(req: Request) {
       body: s.body,
     }));
     await q(
-      `INSERT INTO proposals (lead_id, kind, title, sections, price_min, price_max, monthly_min, monthly_max, currency, source, prepared_by)
-       VALUES ($1, $2, $3, $4::text::jsonb, $5, $6, $7, $8, $9, 'agent', $10)`,
+      `INSERT INTO proposals (lead_id, kind, title, sections, price_min, price_max, monthly_min, monthly_max, currency, source, prepared_by, share_token)
+       VALUES ($1, $2, $3, $4::text::jsonb, $5, $6, $7, $8, $9, 'agent', $10, $11)`,
       [
         lead.id,
         lead.kind === 'college' ? 'college' : 'software',
@@ -266,6 +267,7 @@ export async function POST(req: Request) {
         pr.monthly_max ?? null,
         pr.currency,
         p.agent_name || p.agent,
+        newShareToken(),
       ],
     );
     await q('INSERT INTO activities (lead_id, actor, type, note) VALUES ($1, $2, $3, $4)', [lead.id, p.agent_name || p.agent, 'proposal', 'Proposal drafted by the agent']);

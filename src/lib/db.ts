@@ -157,6 +157,12 @@ CREATE TABLE IF NOT EXISTS proposals (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS proposals_lead_idx ON proposals(lead_id, created_at DESC);
+-- A long random code makes /p/<code> a private link the client can open without signing in.
+ALTER TABLE proposals ADD COLUMN IF NOT EXISTS share_token TEXT;
+ALTER TABLE proposals ADD COLUMN IF NOT EXISTS share_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE proposals ADD COLUMN IF NOT EXISTS views INT NOT NULL DEFAULT 0;
+ALTER TABLE proposals ADD COLUMN IF NOT EXISTS last_viewed_at TIMESTAMPTZ;
+CREATE UNIQUE INDEX IF NOT EXISTS proposals_share_idx ON proposals(share_token);
 
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,

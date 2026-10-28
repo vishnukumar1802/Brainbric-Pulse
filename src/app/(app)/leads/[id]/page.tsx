@@ -432,6 +432,8 @@ export default async function LeadPage({ params }: { params: { id: string } }) {
                         {fmtRange(p.price_min, p.price_max, p.currency)} ·{" "}
                         {p.source === "agent" ? "by the agent" : p.prepared_by} ·{" "}
                         {fmtDate(p.created_at)}
+                        {p.views ? ` · opened ${p.views}×` : ""}
+                        {!p.share_enabled ? " · link off" : ""}
                       </span>
                     </Link>
                     <span
