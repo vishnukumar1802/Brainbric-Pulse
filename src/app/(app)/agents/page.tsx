@@ -1,7 +1,9 @@
 import Link from 'next/link';
+import { AgentNameForm } from '@/components/AgentNameForm';
 import { AgentToggle, AllAgentsToggle } from '@/components/AgentToggle';
 import { Card, PageHeader } from '@/components/ui';
 import { RunStrip } from '@/components/rich';
+import { agentLabel } from '@/lib/agentName';
 import { listAgents, recentRunsByAgent } from '@/lib/agents';
 import { requirePermission } from '@/lib/auth';
 import { fmtAgo, fmtNum } from '@/lib/format';
@@ -12,7 +14,7 @@ export default async function AgentsPage() {
   const user = await requirePermission('agents');
   const [agents, runs] = await Promise.all([listAgents(), recentRunsByAgent(20)]);
   const isAdmin = true; // everyone who can open this page may pause and start agents
-  void user;
+  const canRename = user.role === 'admin';
   const paused = agents.filter((a) => a.paused).length;
   return (
     <>
@@ -22,10 +24,11 @@ export default async function AgentsPage() {
         actions={isAdmin ? <AllAgentsToggle anyRunning={agents.some((a) => !a.paused)} anyPaused={paused > 0} /> : undefined}
       />
       <div className="card overflow-x-auto">
-        <table className="w-full min-w-[760px] text-sm">
+        <table className="w-full min-w-[960px] text-sm">
           <thead>
             <tr className="border-b border-paper-line text-left text-xs font-medium text-ink-500">
               <th className="px-5 py-2.5">Agent</th>
+              {canRename && <th className="px-3 py-2.5">Name</th>}
               <th className="px-3 py-2.5">Schedule</th>
               <th className="px-3 py-2.5">Last 20 runs</th>
               <th className="px-3 py-2.5">Last run</th>
@@ -42,10 +45,16 @@ export default async function AgentsPage() {
               <tr key={a.slug} className="align-top hover:bg-paper/50">
                 <td className="max-w-[26rem] px-5 py-3">
                   <Link href={`/agents/${a.slug}`} className={`font-medium hover:underline ${a.paused ? 'text-ink-500' : 'text-ink-950'}`}>
-                    {a.name}
+                    {a.nickname ?? a.name}
                   </Link>
+                  {a.nickname && <span className="ml-1.5 text-xs text-ink-500">{a.name}</span>}
                   <p className="mt-0.5 line-clamp-2 text-xs text-ink-500">{a.description}</p>
                 </td>
+                {canRename && (
+                  <td className="px-3 py-2.5">
+                    <AgentNameForm slug={a.slug} nickname={a.nickname} role={a.name} />
+                  </td>
+                )}
                 <td className="whitespace-nowrap px-3 py-3 text-ink-700">{a.schedule || 'On demand'}</td>
                 <td className="px-3 py-3.5">
                   <RunStrip runs={runs[a.slug] ?? []} slots={20} />
@@ -65,7 +74,7 @@ export default async function AgentsPage() {
                 {isAdmin && (
                   <td className="px-5 py-2.5">
                     <div className="flex justify-end">
-                      <AgentToggle slug={a.slug} paused={a.paused} name={a.name} />
+                      <AgentToggle slug={a.slug} paused={a.paused} name={agentLabel(a)} />
                     </div>
                   </td>
                 )}

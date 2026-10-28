@@ -6,6 +6,7 @@ import { LeadQuickActions } from '@/components/LeadActions';
 import { Markdown } from '@/components/Markdown';
 import { PipelineFlow } from '@/components/PipelineFlow';
 import { ActivityFeed, CompanyMark, leadName, MarketSplit, NextUp, RunStrip } from '@/components/rich';
+import { agentLabel } from '@/lib/agentName';
 import { listAgents, listDocs, recentRunsByAgent } from '@/lib/agents';
 import { requirePermission } from '@/lib/auth';
 import { can } from '@/lib/permissions';
@@ -190,7 +191,10 @@ export default async function Overview() {
               <li key={a.slug} className="flex items-center gap-3 border-b border-paper-rule px-5 py-2.5 last:border-b-0">
                 <Link href={`/agents/${a.slug}`} className="group min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className={`truncate text-sm font-medium group-hover:underline ${a.paused ? 'text-ink-500' : 'text-ink-950'}`}>{a.name}</span>
+                    <span className={`truncate text-sm font-medium group-hover:underline ${a.paused ? 'text-ink-500' : 'text-ink-950'}`}>
+                      {a.nickname ?? a.name}
+                      {a.nickname && <span className="ml-1.5 text-xs font-normal text-ink-500">{a.name}</span>}
+                    </span>
                     <span className={`shrink-0 text-xs ${a.last_status === 'error' && !a.paused ? 'font-medium text-[#C4242A]' : 'text-ink-500'}`}>
                       {a.paused ? 'Paused' : a.last_status === 'error' ? 'Failed' : a.last_run_at ? fmtAgo(a.last_run_at) : 'No runs yet'}
                     </span>
@@ -200,7 +204,7 @@ export default async function Overview() {
                     <span className="truncate text-xs text-ink-500">{a.schedule || 'On demand'}</span>
                   </div>
                 </Link>
-                {canAgents && <AgentToggle slug={a.slug} paused={a.paused} name={a.name} />}
+                {canAgents && <AgentToggle slug={a.slug} paused={a.paused} name={agentLabel(a)} />}
               </li>
             ))}
           </ul>

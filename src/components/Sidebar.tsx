@@ -119,8 +119,8 @@ export function SidebarContent({
                   className={`h-[7px] w-[7px] shrink-0 rounded-full ${agentDot(a)}`}
                   aria-hidden
                 />
-                <span className={`truncate ${a.paused ? "text-ink-400" : ""}`}>
-                  {a.name}
+                <span className={`truncate ${a.paused ? "text-ink-400" : ""}`} title={a.nickname ? a.name : undefined}>
+                  {a.nickname ?? a.name}
                 </span>
                 {a.paused && (
                   <span className="ml-auto text-xs text-ink-400">Paused</span>

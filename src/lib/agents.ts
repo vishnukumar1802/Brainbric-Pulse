@@ -4,6 +4,8 @@ import { one, q } from './db';
 export type Agent = {
   slug: string;
   name: string;
+  /** The name the admin gave this agent, e.g. Arjun. */
+  nickname: string | null;
   description: string;
   schedule: string;
   enabled: boolean;

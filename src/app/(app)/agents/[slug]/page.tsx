@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { AgentToggle } from '@/components/AgentToggle';
 import { Card, Empty, KindBadge, PageHeader, StatusBadge } from '@/components/ui';
+import { agentLabel } from '@/lib/agentName';
 import { agentRuns, docKindLabel, getAgent, listDocs } from '@/lib/agents';
 import { requirePermission } from '@/lib/auth';
 import { fmtAgo, fmtDate, fmtDateTime, fmtNum } from '@/lib/format';
@@ -22,13 +23,13 @@ export default async function AgentPage({ params }: { params: { slug: string } }
         <ArrowLeft size={15} /> AI team
       </Link>
       <PageHeader
-        title={agent.name}
+        title={agentLabel(agent)}
         subtitle={
           agent.paused
             ? `Paused by ${agent.paused_by || 'an admin'} ${fmtAgo(agent.paused_at)}. It skips its runs until you start it again.`
             : `${agent.schedule ? `${agent.schedule}. ` : ''}${agent.description}`
         }
-        actions={<AgentToggle slug={agent.slug} paused={agent.paused} name={agent.name} size="md" />}
+        actions={<AgentToggle slug={agent.slug} paused={agent.paused} name={agentLabel(agent)} size="md" />}
       />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">

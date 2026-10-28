@@ -12,6 +12,8 @@ import {
 import { requirePermission } from "@/lib/auth";
 import { getSetting } from "@/lib/db";
 import { fmtNum, fmtShortDate } from "@/lib/format";
+import { agentLabel } from "@/lib/agentName";
+import { listAgents } from "@/lib/agents";
 import { listLeads, nichesList, sourcesList, type LeadFilters } from "@/lib/leads";
 import { STATUSES, KIND_LABELS } from "@/lib/status";
 
@@ -22,6 +24,7 @@ type SP = {
   status?: string;
   source?: string;
   niche?: string;
+  agent?: string;
   assigned?: string;
   due?: string;
   q?: string;
@@ -39,16 +42,18 @@ export default async function LeadsPage({
     status: searchParams.status || undefined,
     source: searchParams.source || undefined,
     niche: searchParams.niche || undefined,
+    agent: searchParams.agent || undefined,
     assigned: Number(searchParams.assigned) || undefined,
     due: searchParams.due ? true : undefined,
     q: searchParams.q?.trim() || undefined,
     mine: searchParams.mine ? user.id : undefined,
   };
-  const [leads, sources, niches, myWhatsapp] = await Promise.all([
+  const [leads, sources, niches, myWhatsapp, agents] = await Promise.all([
     listLeads(filters),
     sourcesList(),
     nichesList(),
     getSetting("my_whatsapp"),
+    listAgents(),
   ]);
   const filtered = Object.values(filters).some(Boolean);
 
@@ -132,6 +137,21 @@ export default async function LeadsPage({
               {n.niche} ({n.n})
             </option>
           ))}
+        </select>
+        <select
+          name="agent"
+          defaultValue={searchParams.agent ?? ""}
+          className="input"
+          aria-label="Found by"
+        >
+          <option value="">Any agent</option>
+          {agents
+            .filter((a) => a.slug !== "college-outreach")
+            .map((a) => (
+              <option key={a.slug} value={a.slug}>
+                {agentLabel(a)}
+              </option>
+            ))}
         </select>
         <label className="flex items-center gap-2 whitespace-nowrap px-1 text-[13px] text-ink-700">
           <input

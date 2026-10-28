@@ -13,6 +13,7 @@ import {
   StatusBadge,
   TierBadge,
 } from "@/components/ui";
+import { agentLabel } from "@/lib/agentName";
 import { getAgent } from "@/lib/agents";
 import { requireUser } from "@/lib/auth";
 import { can, homeFor } from "@/lib/permissions";
@@ -471,7 +472,7 @@ export default async function LeadPage({ params }: { params: { id: string } }) {
               <Field label="Found by">
                 {agent ? (
                   <Link href={`/agents/${agent.slug}`} className="link">
-                    {agent.name}
+                    {agentLabel(agent)}
                   </Link>
                 ) : (
                   lead.agent

@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { checkPassword, endSession, ensureBootstrapAdmin, hashPassword, requireAdmin, requirePermission, requireUser, startSession } from '@/lib/auth';
 import { can, homeFor, parsePermissions, PERMISSIONS, USERNAME_RE } from '@/lib/permissions';
+import { NICKNAME_RE } from '@/lib/agentName';
 import { one, q, setSetting } from '@/lib/db';
 import { saveFocus } from '@/lib/focus';
 import { getLead, logActivity } from '@/lib/leads';
@@ -209,6 +210,22 @@ export async function setAgentPausedAction(form: FormData): Promise<void> {
     await q(`UPDATE agents SET ${set} WHERE slug = $${paused ? 2 : 1}`, paused ? [admin.name, slug] : [slug]);
   }
   revalidatePath('/', 'layout');
+}
+
+/** Give an agent a name (admin only). An empty name removes it. */
+export async function renameAgentAction(_prev: FormState, form: FormData): Promise<FormState> {
+  await requireAdmin();
+  const slug = String(form.get('slug') ?? '');
+  const nickname = String(form.get('nickname') ?? '').trim().replace(/\s+/g, ' ');
+  if (!/^[a-z0-9][a-z0-9-]{1,48}$/.test(slug)) return { error: 'Unknown agent.' };
+  if (nickname && !NICKNAME_RE.test(nickname)) return { error: 'Use letters only, up to 24 characters.' };
+  if (nickname) {
+    const taken = await one<{ slug: string }>('SELECT slug FROM agents WHERE lower(nickname) = lower($1) AND slug <> $2', [nickname, slug]);
+    if (taken) return { error: `Another agent is already called ${nickname}.` };
+  }
+  await q('UPDATE agents SET nickname = $1 WHERE slug = $2', [nickname || null, slug]);
+  revalidatePath('/', 'layout');
+  return { ok: nickname ? `Saved. This agent is now ${nickname}.` : 'Name removed.' };
 }
 
 // ---------- Leads ----------

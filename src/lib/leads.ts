@@ -129,7 +129,12 @@ export type Activity = {
 };
 
 export async function leadActivities(id: string): Promise<Activity[]> {
-  return q<Activity>('SELECT * FROM activities WHERE lead_id = $1 ORDER BY created_at DESC LIMIT 100', [id]);
+  // Agents are named by their slug in the log; show the name the admin gave them instead.
+  return q<Activity>(
+    `SELECT a.*, CASE WHEN ag.slug IS NULL THEN a.actor ELSE COALESCE(ag.nickname || ' · ' || ag.name, ag.name) END AS actor FROM activities a LEFT JOIN agents ag ON ag.slug = a.actor
+     WHERE a.lead_id = $1 ORDER BY a.created_at DESC LIMIT 100`,
+    [id],
+  );
 }
 
 export async function logActivity(leadId: string | null, actor: { id?: number | null; name: string }, type: string, note?: string) {
@@ -179,7 +184,8 @@ export type FeedItem = Activity & { company: string | null; kind: string | null;
 /** The latest things that happened across all leads, newest first. */
 export async function recentActivity(limit = 8): Promise<FeedItem[]> {
   return q<FeedItem>(
-    `SELECT a.*, l.company, l.kind, l.requirement FROM activities a LEFT JOIN leads l ON l.id = a.lead_id
+    `SELECT a.*, CASE WHEN ag.slug IS NULL THEN a.actor ELSE COALESCE(ag.nickname || ' · ' || ag.name, ag.name) END AS actor, l.company, l.kind, l.requirement FROM activities a LEFT JOIN leads l ON l.id = a.lead_id
+     LEFT JOIN agents ag ON ag.slug = a.actor
      WHERE l.kind IS DISTINCT FROM 'college'
      ORDER BY a.created_at DESC LIMIT $1`,
     [limit],
