@@ -4,6 +4,8 @@
 import type { OfficePerson } from '@/lib/office';
 
 export type Pt = [number, number];
+/** Which way someone faces, along the floor axes: +y and +x face the viewer, -y and -x face away. */
+export type Face = '+x' | '-x' | '+y' | '-y';
 export type BubbleKind = 'work' | 'chat' | 'alert';
 export type Bubble = { text: string; kind: BubbleKind; until: number };
 
@@ -99,7 +101,7 @@ type Seat = { kind: 'desk'; i: number } | { kind: 'pantry'; i: number } | { kind
 type Job = (
   | { kind: 'walk'; to: string; carry?: boolean }
   | { kind: 'sit'; seat: Seat; dur: number; bubble?: Omit<Bubble, 'until'> }
-  | { kind: 'stand'; dur: number; bubble?: Omit<Bubble, 'until'>; back?: boolean }
+  | { kind: 'stand'; dur: number; bubble?: Omit<Bubble, 'until'>; face?: Face }
   | { kind: 'chat'; with: string; dur: number; first: boolean }
 ) & {
   /** From a real step the agent reported; everything else is office life and gives way to real work. */
@@ -113,7 +115,12 @@ export type Actor = {
   node: string;
   seat: Seat | null;
   walking: boolean;
-  front: boolean;
+  face: Face;
+  /** Walking: heading (unit vector), current speed and the stride phase that drives legs and arms. */
+  hx: number;
+  hy: number;
+  spd: number;
+  phase: number;
   carry: boolean;
   bubble: Bubble | null;
   jobs: Job[];
@@ -162,7 +169,7 @@ export function seatPos(seat: Seat): Pt {
 }
 const sameSeat = (a: Seat | null, b: Seat | null) => Boolean(a && b && a.kind === b.kind && (a.kind === 'cabin' || (a as { i: number }).i === (b as { i: number }).i));
 
-const SPEED = 1.6;
+const SPEED = 1.35;
 
 export class OfficeSim {
   actors: Actor[] = [];
@@ -201,7 +208,11 @@ export class OfficeSim {
         node: home ? seatNode(start) : 'c2',
         seat: home,
         walking: false,
-        front: false,
+        face: '-y',
+        hx: 0,
+        hy: 1,
+        spd: 0,
+        phase: 0,
         carry: false,
         bubble: null,
         jobs: [],
@@ -253,7 +264,7 @@ export class OfficeSim {
         a.jobs.push(...sitHome(text ? { text: short(text), kind: 'work' } : undefined, 5));
         break;
       case 'found':
-        a.jobs.push({ kind: 'walk', to: Math.random() < 0.5 ? 'bo' : 'bo2' }, { kind: 'stand', dur: 2.6, back: true, bubble: { text: text ? `Found: ${short(text, 22)}` : 'New lead found', kind: 'work' } });
+        a.jobs.push({ kind: 'walk', to: Math.random() < 0.5 ? 'bo' : 'bo2' }, { kind: 'stand', dur: 2.6, face: '-y', bubble: { text: text ? `Found: ${short(text, 22)}` : 'New lead found', kind: 'work' } });
         break;
       case 'drafted':
         a.jobs.push({ kind: 'walk', to: 'mm', carry: true }, { kind: 'stand', dur: 2.2, bubble: { text: text ? `Draft: ${short(text, 22)}` : 'Draft ready', kind: 'work' } });
@@ -312,10 +323,10 @@ export class OfficeSim {
     }
     if (r < deskBias + 0.2 && this.startChat(a)) return;
     const choices: Job[][] = [
-      [{ kind: 'walk', to: 'coffee' }, { kind: 'stand', dur: rand(4, 7), back: true, bubble: { text: 'Coffee break', kind: 'chat' } }],
-      [{ kind: 'walk', to: 'w3' }, { kind: 'stand', dur: rand(4, 7), back: true }],
-      [{ kind: 'walk', to: 'bo' }, { kind: 'stand', dur: rand(3, 5), back: true, bubble: { text: 'Checking the pipeline', kind: 'chat' } }],
-      [{ kind: 'walk', to: 'li' }, { kind: 'stand', dur: rand(2, 4), back: true }],
+      [{ kind: 'walk', to: 'coffee' }, { kind: 'stand', dur: rand(4, 7), face: '-y', bubble: { text: 'Coffee break', kind: 'chat' } }],
+      [{ kind: 'walk', to: 'w3' }, { kind: 'stand', dur: rand(4, 7), face: '-x' }],
+      [{ kind: 'walk', to: 'bo' }, { kind: 'stand', dur: rand(3, 5), face: '-y', bubble: { text: 'Checking the pipeline', kind: 'chat' } }],
+      [{ kind: 'walk', to: 'li' }, { kind: 'stand', dur: rand(2, 4), face: '-y' }],
     ];
     const other = pick(this.actors.filter((x) => x !== a && x.home?.kind === 'desk'));
     if (other?.home) {
@@ -391,12 +402,14 @@ export class OfficeSim {
       case 'sit':
         a.seat = job.seat;
         [a.x, a.y] = seatPos(job.seat);
-        a.front = job.seat.kind === 'cabin';
+        a.face = job.seat.kind === 'cabin' ? '+y' : '-y';
+        a.spd = 0;
         a.busyUntil = now + job.dur;
         if (job.bubble) a.bubble = { ...job.bubble, until: now + Math.min(job.dur, 6) };
         return;
       case 'stand':
-        a.front = !job.back;
+        a.face = job.face ?? '+y';
+        a.spd = 0;
         a.busyUntil = now + job.dur;
         a.carry = false;
         if (job.bubble) a.bubble = { ...job.bubble, until: now + job.dur };
@@ -407,7 +420,9 @@ export class OfficeSim {
           a.chatting = null;
           return;
         }
-        a.front = job.first;
+        // Turn to face the other person.
+        a.face = faceToward(b.x - a.x, b.y - a.y);
+        a.spd = 0;
         a.busyUntil = now + job.dur;
         if (job.first) a.bubble = { text: pick(GOSSIP), kind: 'chat', until: now + 2.6 };
         return;
@@ -423,30 +438,70 @@ export class OfficeSim {
     if (!b.bubble && Math.random() < 0.02) a.bubble = { text: pick(GOSSIP), kind: 'chat', until: now + 2.6 };
   }
 
+  /**
+   * Walk like a person: ease into the stride, round the corners instead of turning on the spot, slow down before
+   * stopping, and advance the stride with the distance covered so the feet never slide.
+   */
   private walk(a: Actor, dt: number) {
-    let left = dt * SPEED;
-    while (left > 0 && a.path.length) {
-      const [tx, ty] = a.path[0];
-      const dx = tx - a.x;
-      const dy = ty - a.y;
-      const d = Math.hypot(dx, dy);
-      if (d <= left) {
-        a.x = tx;
-        a.y = ty;
-        a.path.shift();
-        left -= d;
-      } else {
-        a.x += (dx / d) * left;
-        a.y += (dy / d) * left;
-        a.front = dx + dy > 0.001;
-        left = 0;
-      }
+    if (!a.path.length) return this.arrive(a);
+    // Round corners: once close to a turn, head for the point after it.
+    while (a.path.length > 1 && Math.hypot(a.path[0][0] - a.x, a.path[0][1] - a.y) < CORNER) a.path.shift();
+    const [tx, ty] = a.path[0];
+    const dx = tx - a.x;
+    const dy = ty - a.y;
+    const d = Math.hypot(dx, dy);
+    const last = a.path.length === 1;
+    if (d < 0.01) {
+      a.path.shift();
+      return a.path.length ? undefined : this.arrive(a);
     }
-    if (!a.path.length) {
-      a.walking = false;
-      if (!a.jobs.length || a.jobs[0].kind === 'walk') a.carry = false;
+    const ux = dx / d;
+    const uy = dy / d;
+    if (a.spd < 0.05) {
+      // Starting off: face the way you are going.
+      a.hx = ux;
+      a.hy = uy;
+    } else {
+      const k = Math.min(1, dt * TURN);
+      a.hx += (ux - a.hx) * k;
+      a.hy += (uy - a.hy) * k;
+      const n = Math.hypot(a.hx, a.hy) || 1;
+      a.hx /= n;
+      a.hy /= n;
     }
+    const vmax = last ? Math.min(SPEED, Math.sqrt(2 * DECEL * d) + 0.12) : SPEED;
+    a.spd = a.spd < vmax ? Math.min(vmax, a.spd + ACCEL * dt) : vmax;
+    const step = a.spd * dt;
+    if (last && (step >= d || d < 0.06)) {
+      a.x = tx;
+      a.y = ty;
+      a.path.shift();
+      a.phase += (d / STRIDE) * Math.PI;
+      return this.arrive(a);
+    }
+    a.x += a.hx * step;
+    a.y += a.hy * step;
+    a.phase += (step / STRIDE) * Math.PI;
+    a.face = faceToward(a.hx, a.hy);
   }
+
+  private arrive(a: Actor) {
+    a.walking = false;
+    a.spd = 0;
+    if (!a.jobs.length || a.jobs[0].kind === 'walk') a.carry = false;
+  }
+}
+
+/** Walking speed in floor units a second (about a person's 1.3 m/s), with gentle starts and stops. */
+const ACCEL = 2.6;
+const DECEL = 2.2;
+const TURN = 9;
+const CORNER = 0.32;
+/** Floor distance covered by one step. */
+const STRIDE = 0.42;
+
+function faceToward(dx: number, dy: number): Face {
+  return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? '+x' : '-x') : dy > 0 ? '+y' : '-y';
 }
 
 function nearestNode([x, y]: Pt): string {

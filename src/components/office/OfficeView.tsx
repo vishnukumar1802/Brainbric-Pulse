@@ -133,10 +133,10 @@ export function OfficeView({ data }: { data: OfficeData }) {
     const ctx = cv.getContext('2d');
     if (!ctx) return;
     const font = getComputedStyle(document.body).fontFamily || 'system-ui, sans-serif';
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const size = () => {
       const w = cv.clientWidth || LW;
-      const d = window.devicePixelRatio || 1;
+      // Sharp on retina screens, but no more than 2x: more pixels only cost frames.
+      const d = Math.min(2, window.devicePixelRatio || 1);
       cv.width = Math.round(w * d);
       cv.height = Math.round(((w * LH) / LW) * d);
     };
@@ -177,18 +177,6 @@ export function OfficeView({ data }: { data: OfficeData }) {
       tick((n - start) / 1000);
       raf = requestAnimationFrame(loop);
     };
-    if (reduce) {
-      // Reduced motion: people still change places, a step a second, without walking animation.
-      const id = window.setInterval(() => {
-        const t = clockRef.current + 1;
-        clockRef.current = t - 0.25;
-        tick(t);
-      }, 1000);
-      return () => {
-        ro.disconnect();
-        window.clearInterval(id);
-      };
-    }
     raf = requestAnimationFrame(loop);
     return () => {
       ro.disconnect();

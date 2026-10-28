@@ -1,7 +1,7 @@
 // Draws the isometric office on a 2D canvas. Plain functions, no React: the OfficeView component calls drawOffice
 // every animation frame with the people from the simulation (sim.ts) and gets back the clickable areas.
 import type { FloorKey, OfficePerson } from '@/lib/office';
-import { DESKS, PANTRY_SEATS, type Actor, type BubbleKind } from './sim';
+import { DESKS, PANTRY_SEATS, type Actor, type BubbleKind, type Face } from './sim';
 
 export const LW = 900;
 export const LH = 540;
@@ -68,7 +68,11 @@ function shade(hex: string, f: number): string {
   return `rgb(${((n >> 16) * f) | 0},${(((n >> 8) & 255) * f) | 0},${((n & 255) * f) | 0})`;
 }
 
-export function drawOffice(c: Ctx, scale: number, s: SceneInput): Hit[] {
+const ROOM_CACHE = new Map<string, HTMLCanvasElement>();
+
+export function drawOffice(ctx: Ctx, scale: number, s: SceneInput): Hit[] {
+  // `c` is swapped for the cache canvas while the room is drawn once.
+  let c = ctx;
   const th = THEMES[s.floor];
   const hits: Hit[] = [];
   const tags: (() => void)[] = [];
@@ -152,8 +156,13 @@ export function drawOffice(c: Ctx, scale: number, s: SceneInput): Hit[] {
     box(x - 0.06, y - 0.06, 0.38, 0.54, 0.54, 0.38, '#4e9a5c');
     box(x + 0.08, y + 0.08, 0.76, 0.26, 0.26, 0.26, '#69b874');
   };
-  const person = (x: number, y: number, z: number, p: OfficePerson, ph: number, seated: boolean, front: boolean): Pt => {
+  /**
+   * A person made of boxes, facing one of four ways. `gait` animates walking: the stride phase swings the legs
+   * (one forward, one back, the moving foot lifted), the arms swing the other way and the body bobs with each step.
+   */
+  const person = (x: number, y: number, z: number, p: OfficePerson, face: Face, seated = false, gait?: { phase: number; amt: number }): Pt => {
     const lk = looks(p.id);
+    const alongX = face === '+x' || face === '-x';
     if (s.selected === p.id) {
       c.strokeStyle = '#FCB216';
       c.lineWidth = 2.5;
@@ -169,22 +178,45 @@ export function drawOffice(c: Ctx, scale: number, s: SceneInput): Hit[] {
       c.ellipse(q[0], q[1], 10, 5, 0, 0, Math.PI * 2);
       c.fill();
     }
-    const o = ph ? 0.06 : -0.06;
+    const sw = gait ? Math.sin(gait.phase) * gait.amt : 0;
+    const bob = gait ? Math.abs(Math.sin(gait.phase)) * 0.035 * gait.amt : 0;
+    // The direction of travel along the floor, for the swing.
+    const fx0 = alongX ? (face === '+x' ? 1 : -1) : 0;
+    const fy0 = alongX ? 0 : face === '+y' ? 1 : -1;
     if (!seated) {
-      box(x + 0.04, y + 0.06 + o, 0, 0.12, 0.12, 0.45, '#2f3747');
-      box(x + 0.19, y + 0.06 - o, 0, 0.12, 0.12, 0.45, '#2f3747');
+      const legs: [number, number][] = alongX ? [[0.11, 0.03], [0.11, 0.17]] : [[0.04, 0.07], [0.19, 0.07]];
+      legs.forEach(([ox, oy], i) => {
+        const k = i === 0 ? sw : -sw;
+        const lift = Math.max(0, k) * 0.05;
+        box(x + ox + fx0 * k * 0.1, y + oy + fy0 * k * 0.1, lift, 0.12, 0.12, 0.45 - lift + bob, '#2f3747');
+      });
     }
-    const b = z + (seated ? 0 : 0.45);
-    box(x, y, b, 0.34, 0.26, 0.5, lk.shirt);
-    box(x - 0.07, y + 0.05, b + 0.12, 0.07, 0.16, 0.34, lk.shirt);
-    box(x + 0.34, y + 0.05, b + 0.12, 0.07, 0.16, 0.34, lk.shirt);
+    const b = z + (seated ? 0 : 0.45) + bob;
+    // Torso and arms, turned with the body.
+    if (alongX) {
+      box(x + 0.04, y - 0.04, b, 0.26, 0.34, 0.5, lk.shirt);
+      box(x + 0.09 - fx0 * sw * 0.08, y - 0.11, b + 0.12, 0.16, 0.07, 0.34, lk.shirt);
+      box(x + 0.09 + fx0 * sw * 0.08, y + 0.3, b + 0.12, 0.16, 0.07, 0.34, lk.shirt);
+    } else {
+      box(x, y, b, 0.34, 0.26, 0.5, lk.shirt);
+      box(x - 0.07, y + 0.05 - fy0 * sw * 0.08, b + 0.12, 0.07, 0.16, 0.34, lk.shirt);
+      box(x + 0.34, y + 0.05 + fy0 * sw * 0.08, b + 0.12, 0.07, 0.16, 0.34, lk.shirt);
+    }
     const hz = b + 0.5;
     box(x + 0.03, y, hz, 0.28, 0.26, 0.28, '#f1c7a0');
     box(x + 0.01, y - 0.02, hz + 0.22, 0.32, 0.3, 0.1, lk.hair);
-    if (front) {
+    // Eyes on the visible face, or the back of the head when walking away.
+    if (face === '+y') {
       fy(x + 0.08, x + 0.12, y + 0.26, hz + 0.12, hz + 0.17, '#2a2a2a');
       fy(x + 0.21, x + 0.25, y + 0.26, hz + 0.12, hz + 0.17, '#2a2a2a');
-    } else box(x + 0.02, y + 0.2, hz + 0.04, 0.3, 0.08, 0.2, lk.hair);
+    } else if (face === '+x') {
+      fx(x + 0.31, y + 0.05, y + 0.09, hz + 0.12, hz + 0.17, '#2a2a2a');
+      fx(x + 0.31, y + 0.17, y + 0.21, hz + 0.12, hz + 0.17, '#2a2a2a');
+    } else if (face === '-x') {
+      box(x + 0.23, y + 0.0, hz + 0.04, 0.09, 0.26, 0.2, lk.hair);
+    } else {
+      box(x + 0.02, y + 0.2, hz + 0.04, 0.3, 0.08, 0.2, lk.hair);
+    }
     return P(x + 0.17, y + 0.13, hz + 0.78);
   };
   // Name tags stay short so neighbours don't overlap; an agent without a given name shows the first word of its job.
@@ -213,37 +245,54 @@ export function drawOffice(c: Ctx, scale: number, s: SceneInput): Hit[] {
     });
   };
 
-  c.setTransform(scale, 0, 0, scale, 0, 0);
-  c.clearRect(0, 0, LW, LH);
+  // The room itself (floor, walls, windows, lift, board) never changes: draw it once per floor and size, then reuse it.
+  const key = `${s.floor}|${c.canvas.width}x${c.canvas.height}|${scale}`;
+  let room = ROOM_CACHE.get(key);
+  if (!room) {
+    room = document.createElement('canvas');
+    room.width = c.canvas.width;
+    room.height = c.canvas.height;
+    const rc = room.getContext('2d')!;
+    const real = c;
+    c = rc;
+    c.setTransform(scale, 0, 0, scale, 0, 0);
 
-  // Floor, rooms and walls.
-  box(0, 0, -0.35, 18, 14, 0.35, '#b7ae9f');
-  for (let y = 0; y < 14; y++) for (let x = 0; x < 18; x++) tile(x, y, 1, 1, th.tile[(x + y) % 2]);
-  tile(0, 0, 6, 4.8, th.rooms[0]);
-  tile(13, 0, 5, 4.8, th.rooms[1]);
-  tile(13, 4.8, 5, 5, th.rooms[2]);
-  tile(13, 9.8, 5, 4.2, th.rooms[3]);
-  tile(0.6, 5.6, 11.2, 7.4, 'rgba(60,100,150,0.08)');
-  box(-0.25, -0.25, 0, 0.25, 14.25, 2.4, th.wall);
-  box(0, -0.25, 0, 18, 0.25, 2.4, th.wall);
-  fy(0, 18, 0, 2.15, 2.4, th.acc);
-  fx(0, 0, 14, 2.15, 2.4, th.acc);
-  for (const y of [5.4, 8.4, 11.4]) {
-    fx(0, y, y + 2, 0.9, 1.9, '#bfe0f0');
-    fx(0, y + 0.97, y + 1.03, 0.9, 1.9, '#ffffff');
+    // Floor, rooms and walls.
+    box(0, 0, -0.35, 18, 14, 0.35, '#b7ae9f');
+    for (let y = 0; y < 14; y++) for (let x = 0; x < 18; x++) tile(x, y, 1, 1, th.tile[(x + y) % 2]);
+    tile(0, 0, 6, 4.8, th.rooms[0]);
+    tile(13, 0, 5, 4.8, th.rooms[1]);
+    tile(13, 4.8, 5, 5, th.rooms[2]);
+    tile(13, 9.8, 5, 4.2, th.rooms[3]);
+    tile(0.6, 5.6, 11.2, 7.4, 'rgba(60,100,150,0.08)');
+    box(-0.25, -0.25, 0, 0.25, 14.25, 2.4, th.wall);
+    box(0, -0.25, 0, 18, 0.25, 2.4, th.wall);
+    fy(0, 18, 0, 2.15, 2.4, th.acc);
+    fx(0, 0, 14, 2.15, 2.4, th.acc);
+    for (const y of [5.4, 8.4, 11.4]) {
+      fx(0, y, y + 2, 0.9, 1.9, '#bfe0f0');
+      fx(0, y + 0.97, y + 1.03, 0.9, 1.9, '#ffffff');
+    }
+    for (const [a, b] of [[1, 3], [3.4, 5.4], [13.6, 15.6]]) {
+      fy(a, b, 0, 0.9, 1.9, '#bfe0f0');
+      fy((a + b) / 2 - 0.03, (a + b) / 2 + 0.03, 0, 0.9, 1.9, '#ffffff');
+    }
+    fy(7.3, 9.7, 0, 0, 1.85, '#8f99a4');
+    fy(7.45, 8.45, 0, 0.03, 1.75, '#cdd5dc');
+    fy(8.55, 9.55, 0, 0.03, 1.75, '#cdd5dc');
+    fy(10.2, 12.6, 0, 0.8, 1.85, '#ffffff');
+    [['#E4572E', 4], ['#EF9F27', 3], ['#378ADD', 2], ['#1D9E75', 2]].forEach(([col, n], i) => {
+      for (let k = 0; k < (n as number); k++) fy(10.35 + i * 0.58, 10.75 + i * 0.58, 0, 1.55 - k * 0.17, 1.68 - k * 0.17, col as string);
+    });
+    c = real;
+    if (ROOM_CACHE.size > 6) ROOM_CACHE.clear();
+    ROOM_CACHE.set(key, room);
   }
-  for (const [a, b] of [[1, 3], [3.4, 5.4], [13.6, 15.6]]) {
-    fy(a, b, 0, 0.9, 1.9, '#bfe0f0');
-    fy((a + b) / 2 - 0.03, (a + b) / 2 + 0.03, 0, 0.9, 1.9, '#ffffff');
-  }
-  fy(7.3, 9.7, 0, 0, 1.85, '#8f99a4');
-  fy(7.45, 8.45, 0, 0.03, 1.75, '#cdd5dc');
-  fy(8.55, 9.55, 0, 0.03, 1.75, '#cdd5dc');
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.clearRect(0, 0, c.canvas.width, c.canvas.height);
+  c.drawImage(room, 0, 0);
+  c.setTransform(scale, 0, 0, scale, 0, 0);
   fy(8.3, 8.7, 0, 1.92, 2.06, fr ? '#ffcc4d' : '#d6a92a');
-  fy(10.2, 12.6, 0, 0.8, 1.85, '#ffffff');
-  [['#E4572E', 4], ['#EF9F27', 3], ['#378ADD', 2], ['#1D9E75', 2]].forEach(([col, n], i) => {
-    for (let k = 0; k < (n as number); k++) fy(10.35 + i * 0.58, 10.75 + i * 0.58, 0, 1.55 - k * 0.17, 1.68 - k * 0.17, col as string);
-  });
 
   // Furniture and people, drawn back to front.
   const items: { k: number; fn: () => void }[] = [];
@@ -261,7 +310,7 @@ export function drawOffice(c: Ctx, scale: number, s: SceneInput): Hit[] {
   add(3.6, () => {
     if (s.talks > 0) {
       const guest: OfficePerson = { id: 'guest', name: 'Guest', role: '', kind: 'member', floor: s.floor, state: 'working', bubble: null, detail: '', href: null, isYou: false, slug: null, paused: false };
-      const h = person(2.55, 0.85, 0.42, guest, 0, true, true);
+      const h = person(2.55, 0.85, 0.42, guest, '+y', true);
       tags.push(() => bubble(s.floor === 'g' ? `In talks · ${s.talks}` : `College talks · ${s.talks}`, [h[0], h[1] - 6], 'work'));
     }
     box(2.45, 0.62, 0.42, 0.5, 0.12, 0.45, '#c94d6d');
@@ -296,14 +345,14 @@ export function drawOffice(c: Ctx, scale: number, s: SceneInput): Hit[] {
       box(sx - 0.03, sy - 0.05, 0, 0.42, 0.42, 0.45, '#E4572E');
       const a = seatedAt('pantry', i);
       if (!a) return;
-      const h = person(sx, sy, 0.45, a.person, 0, true, false);
+      const h = person(sx, sy, 0.45, a.person, '-y', true);
       label(a, h, a.person.paused);
     });
   });
 
   add(20.6, () => {
     const a = seatedAt('cabin');
-    if (a) label(a, person(15.55, 5.6, 0.45, a.person, 0, true, true));
+    if (a) label(a, person(15.55, 5.6, 0.45, a.person, '+y', true));
     box(15.45, 5.35, 0.45, 0.55, 0.12, 0.6, '#2d3240');
   });
   add(21.6, () => {
@@ -352,7 +401,7 @@ export function drawOffice(c: Ctx, scale: number, s: SceneInput): Hit[] {
     add(dx + dy + 2.8, () => {
       box(dx + 0.95, dy + 1.6, 0, 0.1, 0.1, 0.35, '#222');
       box(dx + 0.65, dy + 1.35, 0.35, 0.7, 0.6, 0.1, '#3b4252');
-      const h = sitter ? person(dx + 0.83, dy + 1.42, 0.45, sitter.person, 0, true, false) : null;
+      const h = sitter ? person(dx + 0.83, dy + 1.42, 0.45, sitter.person, '-y', true) : null;
       box(dx + 0.65, dy + 1.9, 0.45, 0.7, 0.1, 0.55, '#3b4252');
       if (sitter && h) label(sitter, [h[0], h[1] + 6]);
     });
@@ -362,7 +411,7 @@ export function drawOffice(c: Ctx, scale: number, s: SceneInput): Hit[] {
   for (const a of s.actors) {
     if (a.seat && !a.walking) continue;
     add(a.x + a.y + 0.45, () => {
-      const h = person(a.x, a.y, 0, a.person, a.walking ? fr : 0, false, a.front);
+      const h = person(a.x, a.y, 0, a.person, a.face, false, a.walking || a.spd > 0 ? { phase: a.phase, amt: Math.min(1, 0.35 + a.spd / 1.35) } : undefined);
       if (a.carry) box(a.x + 0.38, a.y + 0.05, 0.75, 0.2, 0.26, 0.14, '#ffffff');
       label(a, h);
     });
