@@ -15,6 +15,8 @@ import { fmtAgo, fmtDate, fmtNum } from '@/lib/format';
 import { getOffice } from '@/lib/office';
 import { OfficeView } from '@/components/office/OfficeView';
 import { listLeads, nextUp, openByCountry, pipelineStats, recentActivity, teamActivity } from '@/lib/leads';
+import { ticketCounts } from '@/lib/support';
+import { devopsSummary } from '@/lib/devops';
 
 export const metadata = { title: 'Overview' };
 
@@ -290,7 +292,15 @@ export default async function Overview({ searchParams }: { searchParams: { view?
 
 /** The default Overview: the live 3D office, then what happened and the team's points. */
 async function OfficeOverview({ user }: { user: User }) {
-  const [office, stats, feed, agents] = await Promise.all([getOffice(user), pipelineStats(), recentActivity(6), listAgents()]);
+  const support = can(user, 'support');
+  const [office, stats, feed, agents, tickets, health] = await Promise.all([
+    getOffice(user),
+    pipelineStats(),
+    recentActivity(6),
+    listAgents(),
+    support ? ticketCounts() : null,
+    support ? devopsSummary() : null,
+  ]);
   const t = stats.totals ?? { total: 0, cold: 0, requirement: 0, drafted: 0, hot: 0, contacted: 0, won: 0, week: 0 };
   const working = agents.filter((a) => !a.paused).length;
   const failing = agents.filter((a) => !a.paused && a.last_status === 'error').length;
@@ -328,6 +338,25 @@ async function OfficeOverview({ user }: { user: User }) {
         <Card flush title="Latest activity" note="What the agents and your team did.">
           <ActivityFeed items={feed} />
         </Card>
+        <div className="flex min-w-0 flex-col gap-4">
+        {tickets && health && (
+          <Card title="Support & DevOps" note="Kavya sorts client support mail; Aditya watches the live sites.">
+            <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-paper-line bg-paper-line">
+              <Link href="/tickets" className="bg-white px-4 py-3 transition-colors hover:bg-paper/70">
+                <div className="text-xs text-ink-500">Open tickets</div>
+                <div className="num mt-1 text-xl font-semibold text-ink-950">{fmtNum(tickets.open)}</div>
+                <div className="text-xs text-ink-500">{tickets.urgent ? `${fmtNum(tickets.urgent)} urgent or high` : `${fmtNum(tickets.waiting)} waiting on client`}</div>
+              </Link>
+              <Link href="/devops" className="bg-white px-4 py-3 transition-colors hover:bg-paper/70">
+                <div className="text-xs text-ink-500">Live sites</div>
+                <div className={`num mt-1 text-xl font-semibold ${health.down ? 'text-[#A32A2D]' : 'text-ink-950'}`}>
+                  {health.total ? (health.down ? `${fmtNum(health.down)} down` : 'All OK') : '–'}
+                </div>
+                <div className="text-xs text-ink-500">{health.lastAt ? `Checked ${fmtAgo(health.lastAt)}` : 'No check yet'}</div>
+              </Link>
+            </div>
+          </Card>
+        )}
         <Card title="Team score this week" note="+10 an email, +20 a follow-up, +30 a proposal sent, +50 when a client opens a proposal, +200 a win.">
           {office.scores.length ? (
             <ol className="flex flex-col">
@@ -343,6 +372,7 @@ async function OfficeOverview({ user }: { user: User }) {
             <p className="text-sm text-ink-500">Points appear as the team sends emails.</p>
           )}
         </Card>
+        </div>
       </div>
     </>
   );

@@ -459,13 +459,14 @@ export function buildHQ(floor: FloorKey): HQHandles {
   place(g, 'Ottoman_01', 2.2, 9.4, 0);
   place(g, 'planter_box_01', 0.6, 5.7, Math.PI / 2);
 
-  // ----- Desks: developers (triple monitors, code), sales (dual, dashboards), future (empty) -----
+  // ----- Desks: developers (triple monitors, code), sales and support (dual, dashboards); the last desk waits for QA -----
   const deskTop = std('#f6f5f2', 0.35);
   const deskEdge = std('#b98b5b', 0.45);
   const leg = std('#1c1c1f', 0.35, 0.6);
   HQ_DESKS.forEach(([dx, dz], i) => {
     const isDev = HQ_ZONES.developers.includes(i);
-    const isFuture = HQ_ZONES.future.includes(i);
+    // Support (10) and DevOps (11) are staffed on the ground floor; the last desk stays free for the next team.
+    const isFuture = HQ_ZONES.future.includes(i) && (floor !== 'g' || i === 12);
     box(g, dx, dz, 2.0, 1.1, 0.72, 0.035, deskTop);
     box(g, dx, dz + 1.08, 2.0, 0.03, 0.69, 0.06, deskEdge);
     for (const lx of [0.05, 1.89]) box(g, dx + lx, dz + 0.1, 0.06, 0.9, 0, 0.72, leg);
@@ -564,7 +565,7 @@ export function buildHQ(floor: FloorKey): HQHandles {
   place(g, 'potted_plant_01', 14.9, 15.3, 0);
   place(g, 'wall_clock', 3.0, 0.02, 0, 2.3);
 
-  // ----- Future teams zone sign -----
+  // ----- Support & DevOps zone sign -----
   box(g, 15.4, 15.0, 8.4, 0.05, 0.02, 0.02, glow(accent, 1.4), false);
 
   return { group: g, tray, liftLight, screens, windows: win, stats: live.draw };

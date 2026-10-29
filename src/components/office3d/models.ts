@@ -13,6 +13,8 @@ export const AGENT_MODELS: Record<string, Model> = {
   'social-content': { file: 'Male_Adult_04', sex: 'm' }, // Rahul: casual jacket
   'competitor-watch': { file: 'Female_Adult_07', sex: 'f' }, // Sneha: dark jacket
   'mail-watcher': { file: 'Male_Adult_08', sex: 'm' }, // Vikram: light blue shirt
+  'support-desk': { file: 'Business_Female_01', sex: 'f' }, // Kavya: black suit, white blouse
+  'devops-watch': { file: 'Business_Male_02', sex: 'm' }, // Aditya: navy suit
 };
 
 const TEAM: Model[] = [

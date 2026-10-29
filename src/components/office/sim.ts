@@ -42,6 +42,8 @@ export type Layout = {
   /** Where people without a desk appear. */
   start: string;
   spots: Spots;
+  /** Desks kept for particular agents (slug to desk index), e.g. the support team's corner. */
+  reserved?: Record<string, number>;
 };
 
 export function makeLayout(l: Omit<Layout, 'adj'> & { edges: [string, string][] }): Layout {
@@ -52,7 +54,7 @@ export function makeLayout(l: Omit<Layout, 'adj'> & { edges: [string, string][] 
     (adj[a] ??= []).push({ to: b, d });
     (adj[b] ??= []).push({ to: a, d });
   }
-  return { desks: l.desks, pantrySeats: l.pantrySeats, cabinSeat: l.cabinSeat, nodes: l.nodes, adj, start: l.start, spots: l.spots };
+  return { desks: l.desks, pantrySeats: l.pantrySeats, cabinSeat: l.cabinSeat, nodes: l.nodes, adj, start: l.start, spots: l.spots, reserved: l.reserved };
 }
 
 // The original office (drawn in 2D).
@@ -242,10 +244,16 @@ export class OfficeSim {
     const ordered = present.filter((p) => p !== cabinOwner).sort((a, b) => Number(a.kind !== 'agent') - Number(b.kind !== 'agent'));
     const keep = new Map(this.actors.map((a) => [a.person.id, a]));
     const next: Actor[] = [];
+    // Reserved desks go to their agents; everyone else fills the other desks in order.
+    const reserved = this.layout.reserved ?? {};
+    const taken = new Set(Object.values(reserved));
+    const free = this.layout.desks.map((_, i) => i).filter((i) => !taken.has(i));
+    const others = ordered.filter((p) => !(p.slug && p.slug in reserved));
     const homeFor = (p: OfficePerson): Seat | null => {
       if (p === cabinOwner) return { kind: 'cabin' };
-      const i = ordered.indexOf(p);
-      return i >= 0 && i < this.layout.desks.length ? { kind: 'desk', i } : null;
+      if (p.slug && p.slug in reserved) return { kind: 'desk', i: reserved[p.slug] };
+      const i = others.indexOf(p);
+      return i >= 0 && i < free.length ? { kind: 'desk', i: free[i] } : null;
     };
     for (const p of present) {
       const home = homeFor(p);

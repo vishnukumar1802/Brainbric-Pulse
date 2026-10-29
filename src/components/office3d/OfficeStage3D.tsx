@@ -27,6 +27,8 @@ export type StageProps = {
   readyHref: string;
   talks: number;
   talksHref: string;
+  /** The viewer may open Tickets (the Support & DevOps corner links there). */
+  support: boolean;
   /** Emails sent today and the daily goal, for the screens. */
   sent: number;
   goal: number;
@@ -233,9 +235,10 @@ export function OfficeStage3D(props: StageProps) {
         dev: go(floor === 'g' ? '/leads' : '/colleges'),
         sales: go(floor === 'g' ? '/leads' : '/colleges'),
         mail: go(p.readyHref),
+        future: floor === 'g' && p.support ? go('/tickets') : undefined,
       };
       for (const r of HQ_ROOMS) {
-        const text = r.key === 'cabin' && floor === 'f' ? 'Program head' : r.key === 'mail' ? `Mail room · ${p.ready} ready` : r.name;
+        const text = r.key === 'cabin' && floor === 'f' ? 'Program head' : r.key === 'future' && floor === 'f' ? 'Future teams' : r.key === 'mail' ? `Mail room · ${p.ready} ready` : r.name;
         const o = roomLabel(text, r.at, r.h, r.key === 'mail' ? '#BA7517' : lab, () => flyToRoom(r.at), pages[r.key]);
         if (r.key === 'mail') mailLabel = o.element.firstElementChild as HTMLElement;
         // Room names step aside when the view is far out; the mail room stays (it carries the drafts count).

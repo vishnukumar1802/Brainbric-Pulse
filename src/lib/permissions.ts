@@ -6,6 +6,7 @@ export const PERMISSIONS = [
   { key: 'reports', label: 'Reports', hint: 'Daily briefs and agent reports' },
   { key: 'focus', label: 'Change the focus', hint: 'Pick the service the agents hunt for' },
   { key: 'agents', label: 'AI team', hint: 'See the agents and pause or start them' },
+  { key: 'support', label: 'Support & DevOps', hint: 'Client tickets and the health of the live sites' },
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number]['key'];
@@ -31,6 +32,7 @@ export function homeFor(user: WithAccess): string {
   if (can(user, 'leads')) return '/';
   if (can(user, 'colleges')) return '/colleges';
   if (can(user, 'reports')) return '/reports';
+  if (can(user, 'support')) return '/tickets';
   if (can(user, 'agents')) return '/agents';
   return '/settings';
 }

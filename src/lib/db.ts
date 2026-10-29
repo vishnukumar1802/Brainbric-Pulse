@@ -214,6 +214,51 @@ UPDATE agents SET nickname = v.name
   WHERE agents.slug = v.slug AND agents.nickname IS NULL
     AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'agent_names_v1');
 INSERT INTO settings (key, value) VALUES ('agent_names_v1', 'done') ON CONFLICT (key) DO NOTHING;
+
+-- Support & DevOps team (step 1 of the delivery side).
+INSERT INTO agents (slug, name, nickname, description, schedule, sort) VALUES
+  ('support-desk', 'Support Desk', 'Kavya', 'Turns client support emails into tickets and drafts a reply in Outlook for the team to send.', 'Every 30 min, 9 AM to 7 PM', 70),
+  ('devops-watch', 'DevOps Watch', 'Aditya', 'Checks the live websites and Vercel deployments and flags anything down or failing. Changes nothing.', '9 AM, 1 PM and 6 PM', 80)
+ON CONFLICT (slug) DO NOTHING;
+
+-- Client support tickets, posted by the Support Desk agent. One per email thread; a reply on the same thread reopens it.
+CREATE TABLE IF NOT EXISTS tickets (
+  id SERIAL PRIMARY KEY,
+  thread_id TEXT NOT NULL UNIQUE,
+  message_id TEXT,
+  from_name TEXT,
+  from_email TEXT,
+  company TEXT,
+  subject TEXT,
+  summary TEXT,
+  category TEXT NOT NULL DEFAULT 'question',
+  priority TEXT NOT NULL DEFAULT 'normal',
+  status TEXT NOT NULL DEFAULT 'open',
+  draft TEXT,
+  web_link TEXT,
+  lead_id TEXT,
+  messages INT NOT NULL DEFAULT 1,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  solved_at TIMESTAMPTZ,
+  solved_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS tickets_status_idx ON tickets(status, updated_at);
+
+-- Website and deployment checks, posted by the DevOps Watch agent.
+CREATE TABLE IF NOT EXISTS site_checks (
+  id SERIAL PRIMARY KEY,
+  kind TEXT NOT NULL DEFAULT 'site',
+  target TEXT NOT NULL,
+  ok BOOLEAN NOT NULL,
+  status_code INT,
+  ms INT,
+  note TEXT,
+  link TEXT,
+  checked_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS site_checks_target_idx ON site_checks(target, checked_at);
 `;
 
 const globalForDb = globalThis as unknown as { pulseDb?: Promise<Driver> };

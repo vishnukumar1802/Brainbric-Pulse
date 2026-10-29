@@ -12,6 +12,7 @@ import { getLead, logActivity } from '@/lib/leads';
 import { collegeTemplate, ensureShareToken, getPriceGuide, getProposal, insertProposal, softwareTemplate } from '@/lib/proposals';
 import { SERVICES } from '@/lib/services';
 import { STATUSES } from '@/lib/status';
+import { setTicketStatus, TICKET_STATUSES, type TicketStatus } from '@/lib/support';
 
 export type FormState = { error?: string; ok?: string; credentials?: { username: string; password: string } } | undefined;
 
@@ -478,4 +479,41 @@ export async function setProposalLinkAction(form: FormData): Promise<void> {
   await logActivity(p.lead_id, ctx.me, 'proposal_link', on ? `Client link turned on by ${ctx.me.name}` : `Client link turned off by ${ctx.me.name}`);
   revalidatePath(`/proposals/${id}`);
   revalidatePath(`/leads/${encodeURIComponent(p.lead_id)}`);
+}
+
+// ---------- Support & DevOps ----------
+
+export async function setTicketStatusAction(form: FormData): Promise<void> {
+  const user = await requirePermission('support');
+  const id = Number(form.get('id'));
+  const status = String(form.get('status') ?? '');
+  if (!Number.isInteger(id) || !(TICKET_STATUSES as readonly string[]).includes(status)) return;
+  await setTicketStatus(id, status as TicketStatus, user.name);
+  revalidatePath('/tickets');
+  revalidatePath('/', 'layout');
+}
+
+/** What counts as support mail, in the admin's words. The Support Desk reads it on every run. */
+export async function saveSupportRulesAction(_: FormState, form: FormData): Promise<FormState> {
+  await requireAdmin();
+  const rules = String(form.get('rules') ?? '').trim();
+  if (rules.length > 2000) return { error: 'Keep it under 2,000 characters.' };
+  await setSetting('support_rules', rules);
+  revalidatePath('/tickets');
+  return { ok: rules ? 'Saved. The Support Desk follows this from its next run.' : 'Cleared. The Support Desk uses the default rule.' };
+}
+
+/** The websites the DevOps Watch checks, one per line. */
+export async function saveDevopsSitesAction(_: FormState, form: FormData): Promise<FormState> {
+  await requireAdmin();
+  const lines = String(form.get('sites') ?? '')
+    .split(/\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const bad = lines.find((s) => !/^https?:\/\/[^\s/]+\.[^\s/]+/.test(s));
+  if (bad) return { error: `"${bad}" is not a web address. Start each one with https://` };
+  if (lines.length > 30) return { error: 'Up to 30 sites.' };
+  await setSetting('devops_sites', [...new Set(lines)].join('\n'));
+  revalidatePath('/devops');
+  return { ok: `Saved ${lines.length} ${lines.length === 1 ? 'site' : 'sites'}. Checked from the next run.` };
 }

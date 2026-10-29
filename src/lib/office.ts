@@ -41,6 +41,8 @@ export type OfficeData = {
   scores: { id: number; name: string; xp: number; isYou: boolean }[];
   /** Whether this person may pause and start agents. */
   canControl: boolean;
+  /** May open Tickets and DevOps. */
+  canSupport: boolean;
 };
 
 /** Agents that work on the college programs floor. Everything else sits on the ground floor. */
@@ -179,5 +181,6 @@ export async function getOffice(me: User): Promise<OfficeData> {
     streak,
     scores,
     canControl: can(me, 'agents'),
+    canSupport: can(me, 'support'),
   };
 }

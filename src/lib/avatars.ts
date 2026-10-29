@@ -28,6 +28,8 @@ export const AGENT_AVATARS: Record<string, AgentAvatar> = {
   'social-content': { name: 'Rahul', photo: true, look: { skin: '#A06A47', hair: '#120D0A', style: 'curly', top: '#5E6B45', inner: '#1A1A1A', pants: '#2A2D33' } },
   'competitor-watch': { name: 'Sneha', photo: true, look: { skin: '#B07B57', hair: '#120E0B', style: 'ponytail', top: '#151515', inner: '#151515', pants: '#1E1E22' } },
   'mail-watcher': { name: 'Vikram', photo: false, look: { skin: '#A97650', hair: '#16110D', style: 'short', top: '#9DBBE0', inner: '#9DBBE0', pants: '#3A4252', headset: true } },
+  'support-desk': { name: 'Kavya', photo: false, look: { skin: '#B5805C', hair: '#16100C', style: 'long', top: '#1C1C1F', inner: '#F4F4F2', pants: '#1F1F23', headset: true } },
+  'devops-watch': { name: 'Aditya', photo: false, look: { skin: '#A8714C', hair: '#120D0A', style: 'short', top: '#2A3552', inner: '#E9EEF5', pants: '#262B38', glasses: true } },
 };
 
 export function agentPhoto(slug: string | null | undefined, kind: 'face' | 'card' = 'face'): string | null {

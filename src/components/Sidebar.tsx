@@ -4,11 +4,13 @@ import {
   FileText,
   GraduationCap,
   LayoutGrid,
+  LifeBuoy,
   LogOut,
   Send,
   Settings,
   Target,
   Users,
+  Activity,
 } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import { can } from "@/lib/permissions";
@@ -33,7 +35,7 @@ export function SidebarContent({
 }: {
   user: User;
   agents: Agent[];
-  counts: { drafted: number; hot: number; colleges: number };
+  counts: { drafted: number; hot: number; colleges: number; tickets: number; down: number };
   focus: string;
 }) {
   const initials = user.name
@@ -95,6 +97,22 @@ export function SidebarContent({
           <nav className="flex flex-col gap-0.5" aria-label="College programs">
             <NavLink href="/colleges" count={counts.colleges}>
               <GraduationCap size={16} strokeWidth={1.75} /> Colleges
+            </NavLink>
+          </nav>
+        </div>
+      )}
+
+      {can(user, "support") && (
+        <div className="mt-7">
+          <div className="mb-1.5 px-2.5 text-xs text-ink-500">
+            Support &amp; DevOps
+          </div>
+          <nav className="flex flex-col gap-0.5" aria-label="Support and DevOps">
+            <NavLink href="/tickets" count={counts.tickets}>
+              <LifeBuoy size={16} strokeWidth={1.75} /> Tickets
+            </NavLink>
+            <NavLink href="/devops" count={counts.down}>
+              <Activity size={16} strokeWidth={1.75} /> DevOps
             </NavLink>
           </nav>
         </div>

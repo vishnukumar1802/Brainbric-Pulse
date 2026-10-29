@@ -2,7 +2,7 @@
 //
 //   back:   boardroom | atrium (lift, pipeline board, cooler) | café | server room | manager cabin
 //   middle: lounge | developer zone (6 desks) | sales & support (4 desks) | play area
-//   front:  mail room | focus pods | reception | future teams (3 desks)
+//   front:  mail room | focus pods | reception | support & DevOps (3 desks)
 //
 // Corridors run along y = 5.0 and y = 10.6 with cross aisles at y = 7.7 and x = 4.75 / 14.25 / 20.25.
 import { makeLayout, type Pt } from './sim';
@@ -10,7 +10,7 @@ import { makeLayout, type Pt } from './sim';
 export const HQ_W = 24;
 export const HQ_D = 16;
 
-// Desks: developers (0-5), sales & support (6-9), future teams (10-12). Seats face the back wall.
+// Desks: developers (0-5), sales (6-9), support & DevOps (10-12). Seats face the back wall.
 const DEV_X = [5.2, 8.0, 10.8];
 const SALES_X = [15.0, 17.6];
 const FUTURE_X = [15.8, 18.6, 21.4];
@@ -96,6 +96,8 @@ export const HQ = makeLayout({
   nodes: N,
   edges: E,
   start: 'aLift',
+  // The Support & DevOps corner (front right).
+  reserved: { 'support-desk': 10, 'devops-watch': 11 },
   spots: {
     board: ['bo', 'bo2'],
     mail: 'mm',
@@ -124,10 +126,10 @@ export const HQ_ROOMS = [
   { key: 'cabin', name: 'Manager cabin', at: [22.2, 4.7] as Pt, h: 0.05 },
   { key: 'lounge', name: 'Lounge', at: [2.2, 10.2] as Pt, h: 0.05 },
   { key: 'dev', name: 'Developers', at: [9.6, 10.2] as Pt, h: 0.05 },
-  { key: 'sales', name: 'Sales & support', at: [17.3, 10.2] as Pt, h: 0.05 },
+  { key: 'sales', name: 'Sales', at: [17.3, 10.2] as Pt, h: 0.05 },
   { key: 'play', name: 'Play area', at: [22.2, 10.2] as Pt, h: 0.05 },
   { key: 'mail', name: 'Mail room', at: [2.2, 15.6] as Pt, h: 0.05 },
   { key: 'focus', name: 'Focus pods', at: [7.0, 15.6] as Pt, h: 0.05 },
   { key: 'reception', name: 'Reception', at: [12.3, 15.6] as Pt, h: 0.05 },
-  { key: 'future', name: 'Future teams · QA · DevOps · Support', at: [19.6, 15.6] as Pt, h: 0.05 },
+  { key: 'future', name: 'Support & DevOps', at: [19.6, 15.6] as Pt, h: 0.05 },
 ] as const;
