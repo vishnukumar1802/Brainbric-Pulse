@@ -1,0 +1,8 @@
+Furniture and decor models in this folder are from Poly Haven (https://polyhaven.com), released under CC0 1.0
+(public domain): free for any use, no attribution required. Credited here with thanks.
+Optimised for the web (textures 512 px, meshopt-compressed geometry).
+
+sofa_02, modern_arm_chair_01, mid_century_lounge_chair, Ottoman_01, bar_chair_round_01, modern_coffee_table_01,
+coffee_table_round_01, round_wooden_table_01, potted_plant_01, potted_plant_02, potted_plant_04, pachira_aquatica_01,
+calathea_orbifolia_01, planter_box_01, Television_01, gaming_console, classic_laptop, desk_lamp_arm_01,
+modern_ceiling_lamp_01, dartboard, chess_set, hanging_picture_frame_01, wall_clock, CoffeeCart_01, steel_frame_shelves_01

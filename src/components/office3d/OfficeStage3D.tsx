@@ -12,7 +12,9 @@ import type { FloorKey, OfficePerson } from '@/lib/office';
 import { personColor } from '../office/scene';
 import type { Actor, OfficeSim } from '../office/sim';
 import { CLIPS, GUEST, modelFor, type Model } from './models';
-import { buildRoom, LABELS, ROOM_D, ROOM_W, U, type RoomHandles } from './room3d';
+import { HQ_D, HQ_GUEST, HQ_ROOMS, HQ_W } from '../office/hqLayout';
+import { buildHQ, U, type HQHandles } from './hq3d';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 const BASE = '/office3d';
 type Sims = Record<FloorKey, OfficeSim>;
@@ -90,17 +92,24 @@ export function OfficeStage3D(props: StageProps) {
     host.appendChild(labels.domElement);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#efedea');
-    const center = new THREE.Vector3((ROOM_W * U) / 2, 0.5, (ROOM_D * U) / 2);
+    scene.background = new THREE.Color('#e9e7e3');
+    // Soft studio reflections so wood, marble, metal and glass look real.
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environmentIntensity = 0.55;
+    const center = new THREE.Vector3((HQ_W * U) / 2, 0.5, (HQ_D * U) / 2);
     const camera = new THREE.PerspectiveCamera(30, 1.6, 0.1, 200);
-    camera.position.set(center.x + 13, 12, center.z + 13);
+    camera.position.set(center.x + 15, 14, center.z + 15);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.target.copy(center);
     controls.enableDamping = true;
     controls.minDistance = 6;
-    controls.maxDistance = 34;
+    controls.maxDistance = 42;
     controls.maxPolarAngle = Math.PI * 0.42;
     controls.minPolarAngle = Math.PI * 0.1;
+    // Keep the open sides towards the viewer (the back and left walls stay behind the office).
+    controls.minAzimuthAngle = Math.PI * 0.05;
+    controls.maxAzimuthAngle = Math.PI * 0.45;
     controls.update();
 
     scene.add(new THREE.HemisphereLight('#ffffff', '#b9b2a6', 1.35));
@@ -109,7 +118,7 @@ export function OfficeStage3D(props: StageProps) {
     sun.target.position.copy(center);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
-    Object.assign(sun.shadow.camera, { left: -11, right: 11, top: 11, bottom: -11 });
+    Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14 });
     sun.shadow.bias = -0.0005;
     scene.add(sun, sun.target);
 
@@ -126,7 +135,7 @@ export function OfficeStage3D(props: StageProps) {
     ro.observe(host);
 
     // ----- Room per floor, with clickable room labels -----
-    let room: RoomHandles | null = null;
+    let room: HQHandles | null = null;
     let roomFloor: FloorKey | null = null;
     const roomLabels: CSS2DObject[] = [];
     const roomLabel = (text: string, at: readonly [number, number], y: number, color: string, onClick?: () => void) => {
@@ -147,17 +156,26 @@ export function OfficeStage3D(props: StageProps) {
         o.element.remove();
       }
       roomLabels.length = 0;
-      room = buildRoom(floor);
+      room = buildHQ(floor);
       roomFloor = floor;
       scene.add(room.group);
       const p = propsRef.current;
       const lab = 'rgba(40,36,44,0.78)';
-      roomLabel('Meeting room', LABELS.meeting, 0.05, lab, () => propsRef.current.onNavigate(propsRef.current.talksHref));
-      roomLabel('Pantry', LABELS.pantry, 0.05, lab);
-      roomLabel(floor === 'g' ? 'Manager cabin' : 'Program head', LABELS.cabin, 0.05, lab);
-      mailLabel = roomLabel(`Mail room · ${p.ready} ready`, LABELS.mail, 0.05, '#BA7517', () => propsRef.current.onNavigate(propsRef.current.readyHref)).element;
-      roomLabel('Pipeline', LABELS.pipeline, 2.25, lab, () => propsRef.current.onNavigate(floor === 'g' ? '/leads' : '/colleges'));
-      if (p.otherFloor) roomLabel(`Lift · ${p.otherFloor}`, LABELS.lift, 2.45, lab, () => propsRef.current.onLift());
+      // Room names; the ones that lead somewhere open it.
+      const go = (href: string) => () => propsRef.current.onNavigate(href);
+      const action: Record<string, (() => void) | undefined> = {
+        board: go(p.talksHref),
+        dev: go(floor === 'g' ? '/leads' : '/colleges'),
+        sales: go(floor === 'g' ? '/leads' : '/colleges'),
+        mail: go(p.readyHref),
+      };
+      for (const r of HQ_ROOMS) {
+        const text = r.key === 'cabin' && floor === 'f' ? 'Program head' : r.key === 'mail' ? `Mail room · ${p.ready} ready` : r.name;
+        const o = roomLabel(text, r.at, r.h, r.key === 'mail' ? '#BA7517' : lab, action[r.key]);
+        if (r.key === 'mail') mailLabel = o.element;
+      }
+      roomLabel('Pipeline', [9.1, 0], 2.35, lab, () => propsRef.current.onNavigate(floor === 'g' ? '/leads' : '/colleges'));
+      if (p.otherFloor) roomLabel(`Lift · ${p.otherFloor}`, [7.55, 0], 2.65, lab, () => propsRef.current.onLift());
     };
 
     // ----- People -----
@@ -336,7 +354,8 @@ export function OfficeStage3D(props: StageProps) {
         if (!b.root.parent) scene.add(b.root);
         const cx = (a.x + 0.17) * U;
         const cz = (a.y + 0.13) * U;
-        b.root.position.set(cx, 0, cz);
+        // Café bar stools are taller than desk chairs.
+        b.root.position.set(cx, a.seat?.kind === 'pantry' && !a.walking ? 0.3 : 0, cz);
         const moving = a.walking || a.spd > 0.05;
         const want = moving ? Math.atan2(a.hx, a.hy) : FACE_ANGLE[a.face] ?? 0;
         if (moving || !a.seat) {
@@ -370,7 +389,7 @@ export function OfficeStage3D(props: StageProps) {
         }
         if (guest) {
           if (!guest.root.parent) scene.add(guest.root);
-          guest.root.position.set(2.7 * U, 0, 0.85 * U);
+          guest.root.position.set((HQ_GUEST[0] + 0.17) * U, 0, (HQ_GUEST[1] + 0.13) * U);
           guest.root.rotation.y = 0;
           play(guest, 'sit', 0);
           const guestPerson = { id: 'guest', name: 'Guest', role: '', kind: 'member', floor: p.floor, state: 'working', bubble: null, detail: '', href: null, isYou: false, slug: null, paused: false } as OfficePerson;

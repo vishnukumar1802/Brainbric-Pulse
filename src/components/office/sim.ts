@@ -13,6 +13,49 @@ export type LiveStepEvent = { id: number; agent: string; step: string; text: str
 
 // ---------- The walking map ----------
 
+/** Spots in an office where people go for work or for a break. Node names refer to the layout's walking map. */
+export type Spots = {
+  /** Where a found lead is pinned. */
+  board: string[];
+  /** Where drafts are dropped off. */
+  mail: string;
+  /** Where mail for the manager is handed over. */
+  cabinVisit: string;
+  /** Where paused agents wait when the pantry seats are taken. */
+  coffee: string;
+  /** Office-life errands: walk there and stand for a while. */
+  idle: { to: string; face: Face; bubble?: string }[];
+  /** Pairs of spots where two people meet for a chat. */
+  chatPairs: [string, string][];
+};
+
+/**
+ * One office floor plan: desks (each 2.0 x 1.1 floor units; the seat is at x + 0.83, y + 1.42), pantry seats, the
+ * cabin seat and a walking map. Seat nodes are named s<i> (desks), ps<k> (pantry) and cs (cabin).
+ */
+export type Layout = {
+  desks: Pt[];
+  pantrySeats: Pt[];
+  cabinSeat: Pt;
+  nodes: Record<string, Pt>;
+  adj: Record<string, { to: string; d: number }[]>;
+  /** Where people without a desk appear. */
+  start: string;
+  spots: Spots;
+};
+
+export function makeLayout(l: Omit<Layout, 'adj'> & { edges: [string, string][] }): Layout {
+  const adj: Layout['adj'] = {};
+  for (const [a, b] of l.edges) {
+    if (!l.nodes[a] || !l.nodes[b]) throw new Error(`Layout edge to an unknown node: ${a} - ${b}`);
+    const d = Math.hypot(l.nodes[a][0] - l.nodes[b][0], l.nodes[a][1] - l.nodes[b][1]);
+    (adj[a] ??= []).push({ to: b, d });
+    (adj[b] ??= []).push({ to: a, d });
+  }
+  return { desks: l.desks, pantrySeats: l.pantrySeats, cabinSeat: l.cabinSeat, nodes: l.nodes, adj, start: l.start, spots: l.spots };
+}
+
+// The original office (drawn in 2D).
 export const DESKS: Pt[] = [
   [1.0, 6], [3.8, 6], [6.6, 6], [9.4, 6],
   [1.0, 10], [3.8, 10], [6.6, 10], [9.4, 10],
@@ -61,14 +104,29 @@ PANTRY_SEATS.forEach(([sx], k) => {
   E.push(['pi', `ps${k}`]);
 });
 
-const ADJ: Record<string, { to: string; d: number }[]> = {};
-for (const [a, b] of E) {
-  const d = Math.hypot(N[a][0] - N[b][0], N[a][1] - N[b][1]);
-  (ADJ[a] ??= []).push({ to: b, d });
-  (ADJ[b] ??= []).push({ to: a, d });
-}
+export const CLASSIC: Layout = makeLayout({
+  desks: DESKS,
+  pantrySeats: PANTRY_SEATS,
+  cabinSeat: CABIN_SEAT,
+  nodes: N,
+  edges: E,
+  start: 'c2',
+  spots: {
+    board: ['bo', 'bo2'],
+    mail: 'mm',
+    cabinVisit: 'cv',
+    coffee: 'coffee',
+    idle: [
+      { to: 'coffee', face: '-y', bubble: 'Coffee break' },
+      { to: 'w3', face: '-x' },
+      { to: 'bo', face: '-y', bubble: 'Checking the pipeline' },
+      { to: 'li', face: '-y' },
+    ],
+    chatPairs: [['chatP1', 'chatP2'], ['co', 'co2'], ['bo', 'bo2'], ['ms1', 'ms2']],
+  },
+});
 
-function route(from: string, to: string): string[] {
+function route(L: Layout, from: string, to: string): string[] {
   if (from === to) return [to];
   const dist: Record<string, number> = { [from]: 0 };
   const prev: Record<string, string> = {};
@@ -79,7 +137,7 @@ function route(from: string, to: string): string[] {
     for (const n of open) if (dist[n] < best) ((best = dist[n]), (cur = n));
     open.delete(cur);
     if (cur === to) break;
-    for (const { to: nx, d } of ADJ[cur] ?? []) {
+    for (const { to: nx, d } of L.adj[cur] ?? []) {
       const nd = best + d;
       if (nd < (dist[nx] ?? Infinity)) {
         dist[nx] = nd;
@@ -162,10 +220,10 @@ function seatNode(seat: Seat): string {
   if (seat.kind === 'pantry') return `ps${seat.i}`;
   return 'cs';
 }
-export function seatPos(seat: Seat): Pt {
-  if (seat.kind === 'desk') return [DESKS[seat.i][0] + 0.83, DESKS[seat.i][1] + 1.42];
-  if (seat.kind === 'pantry') return PANTRY_SEATS[seat.i];
-  return CABIN_SEAT;
+export function seatPos(L: Layout, seat: Seat): Pt {
+  if (seat.kind === 'desk') return [L.desks[seat.i][0] + 0.83, L.desks[seat.i][1] + 1.42];
+  if (seat.kind === 'pantry') return L.pantrySeats[seat.i];
+  return L.cabinSeat;
 }
 const sameSeat = (a: Seat | null, b: Seat | null) => Boolean(a && b && a.kind === b.kind && (a.kind === 'cabin' || (a as { i: number }).i === (b as { i: number }).i));
 
@@ -174,6 +232,8 @@ const SPEED = 1.35;
 export class OfficeSim {
   actors: Actor[] = [];
   private now = 0;
+
+  constructor(readonly layout: Layout = CLASSIC) {}
 
   /** Match the cast to the latest data: new people walk in, people who left disappear, homes are kept. */
   sync(people: OfficePerson[], isGround: boolean) {
@@ -185,7 +245,7 @@ export class OfficeSim {
     const homeFor = (p: OfficePerson): Seat | null => {
       if (p === cabinOwner) return { kind: 'cabin' };
       const i = ordered.indexOf(p);
-      return i >= 0 && i < DESKS.length ? { kind: 'desk', i } : null;
+      return i >= 0 && i < this.layout.desks.length ? { kind: 'desk', i } : null;
     };
     for (const p of present) {
       const home = homeFor(p);
@@ -194,18 +254,18 @@ export class OfficeSim {
         old.person = p;
         if (!sameSeat(old.home, home)) {
           old.home = home;
-          old.homeNode = home ? seatNode(home) : 'c2';
+          old.homeNode = home ? seatNode(home) : this.layout.start;
         }
         next.push(old);
         continue;
       }
       const start = home ?? { kind: 'desk' as const, i: 0 };
-      const [x, y] = home ? seatPos(start) : N.c2;
+      const [x, y] = home ? seatPos(this.layout, start) : this.layout.nodes[this.layout.start];
       next.push({
         person: p,
         x,
         y,
-        node: home ? seatNode(start) : 'c2',
+        node: home ? seatNode(start) : this.layout.start,
         seat: home,
         walking: false,
         face: '-y',
@@ -220,7 +280,7 @@ export class OfficeSim {
         working: false,
         lastWorkText: null,
         home,
-        homeNode: home ? seatNode(home) : 'c2',
+        homeNode: home ? seatNode(home) : this.layout.start,
         chatting: null,
         path: [],
         onReal: false,
@@ -264,14 +324,14 @@ export class OfficeSim {
         a.jobs.push(...sitHome(text ? { text: short(text), kind: 'work' } : undefined, 5));
         break;
       case 'found':
-        a.jobs.push({ kind: 'walk', to: Math.random() < 0.5 ? 'bo' : 'bo2' }, { kind: 'stand', dur: 2.6, face: '-y', bubble: { text: text ? `Found: ${short(text, 22)}` : 'New lead found', kind: 'work' } });
+        a.jobs.push({ kind: 'walk', to: pick(this.layout.spots.board) }, { kind: 'stand', dur: 2.6, face: '-y', bubble: { text: text ? `Found: ${short(text, 22)}` : 'New lead found', kind: 'work' } });
         break;
       case 'drafted':
-        a.jobs.push({ kind: 'walk', to: 'mm', carry: true }, { kind: 'stand', dur: 2.2, bubble: { text: text ? `Draft: ${short(text, 22)}` : 'Draft ready', kind: 'work' } });
+        a.jobs.push({ kind: 'walk', to: this.layout.spots.mail, carry: true }, { kind: 'stand', dur: 2.2, bubble: { text: text ? `Draft: ${short(text, 22)}` : 'Draft ready', kind: 'work' } });
         break;
       case 'mail':
         // Carry the letter to the manager's cabin.
-        a.jobs.push({ kind: 'walk', to: 'cv', carry: true }, { kind: 'stand', dur: 3.2, face: '-y', bubble: { text: text ? `Mail: ${short(text, 26)}` : 'You have mail', kind: 'work' } });
+        a.jobs.push({ kind: 'walk', to: this.layout.spots.cabinVisit, carry: true }, { kind: 'stand', dur: 3.2, face: '-y', bubble: { text: text ? `Mail: ${short(text, 26)}` : 'You have mail', kind: 'work' } });
         a.working = false;
         break;
       case 'finished':
@@ -302,9 +362,9 @@ export class OfficeSim {
     // Paused agents rest in the pantry.
     if (p.kind === 'agent' && p.paused) {
       const taken = new Set(this.actors.filter((x) => x !== a && x.seat?.kind === 'pantry').map((x) => (x.seat as { i: number }).i));
-      const free = [0, 1, 2].find((i) => !taken.has(i));
+      const free = this.layout.pantrySeats.map((_, i) => i).find((i) => !taken.has(i));
       if (free == null) {
-        a.jobs.push({ kind: 'walk', to: 'coffee' }, { kind: 'stand', dur: 12 });
+        a.jobs.push({ kind: 'walk', to: this.layout.spots.coffee }, { kind: 'stand', dur: 12 });
       } else {
         const seat: Seat = { kind: 'pantry', i: free };
         a.jobs.push({ kind: 'walk', to: seatNode(seat) }, { kind: 'sit', seat, dur: 30 });
@@ -327,16 +387,14 @@ export class OfficeSim {
       return;
     }
     if (r < deskBias + 0.2 && this.startChat(a)) return;
-    const choices: Job[][] = [
-      [{ kind: 'walk', to: 'coffee' }, { kind: 'stand', dur: rand(4, 7), face: '-y', bubble: { text: 'Coffee break', kind: 'chat' } }],
-      [{ kind: 'walk', to: 'w3' }, { kind: 'stand', dur: rand(4, 7), face: '-x' }],
-      [{ kind: 'walk', to: 'bo' }, { kind: 'stand', dur: rand(3, 5), face: '-y', bubble: { text: 'Checking the pipeline', kind: 'chat' } }],
-      [{ kind: 'walk', to: 'li' }, { kind: 'stand', dur: rand(2, 4), face: '-y' }],
-    ];
+    const choices: Job[][] = this.layout.spots.idle.map((sp) => [
+      { kind: 'walk', to: sp.to },
+      { kind: 'stand', dur: rand(3, 7), face: sp.face, bubble: sp.bubble ? { text: sp.bubble, kind: 'chat' } : undefined },
+    ]);
     const other = pick(this.actors.filter((x) => x !== a && x.home?.kind === 'desk'));
     if (other?.home) {
       const i = (other.home as { i: number }).i;
-      choices.push([{ kind: 'walk', to: `j${i}` }, { kind: 'stand', dur: rand(3, 6), bubble: { text: pick(GOSSIP), kind: 'chat' } }]);
+      choices.push([{ kind: 'walk', to: `s${i}` }, { kind: 'stand', dur: rand(3, 6), bubble: { text: pick(GOSSIP), kind: 'chat' } }]);
     }
     a.jobs.push(...pick(choices));
   }
@@ -345,12 +403,7 @@ export class OfficeSim {
     const free = this.actors.filter((x) => x !== a && !x.chatting && !x.working && !(x.person.kind === 'agent' && x.person.paused) && x.jobs.length === 0);
     const b = pick(free);
     if (!b) return false;
-    const spots = pick([
-      ['chatP1', 'chatP2'],
-      ['co', 'co2'],
-      ['bo', 'bo2'],
-      ['ms1', 'ms2'],
-    ]);
+    const spots = pick(this.layout.spots.chatPairs);
     const dur = rand(8, 13);
     a.chatting = b.person.id;
     b.chatting = a.person.id;
@@ -368,7 +421,7 @@ export class OfficeSim {
         // A real step arrived mid-stroll: stop at the next corner and head off from there.
         if (!a.onReal && a.jobs[0]?.real && a.path.length > 1) {
           a.path = a.path.slice(0, 1);
-          a.node = nearestNode(a.path[0]);
+          a.node = nearestNode(this.layout, a.path[0]);
         }
         this.walk(a, dt);
         continue;
@@ -396,9 +449,10 @@ export class OfficeSim {
         const from = a.node;
         const wasSeated = Boolean(a.seat);
         a.seat = null;
-        const nodes = route(from, job.to);
+        const L = this.layout;
+        const nodes = route(L, from, job.to);
         // From a chair, first step out to the spot in front of it.
-        a.path = [...(wasSeated ? [N[from]] : []), ...nodes.map((n) => N[n])];
+        a.path = [...(wasSeated ? [L.nodes[from]] : []), ...nodes.map((n) => L.nodes[n])];
         a.node = job.to;
         a.walking = a.path.length > 0;
         a.carry = Boolean(job.carry);
@@ -406,7 +460,7 @@ export class OfficeSim {
       }
       case 'sit':
         a.seat = job.seat;
-        [a.x, a.y] = seatPos(job.seat);
+        [a.x, a.y] = seatPos(this.layout, job.seat);
         a.face = job.seat.kind === 'cabin' ? '+y' : '-y';
         a.spd = 0;
         a.busyUntil = now + job.dur;
@@ -509,10 +563,10 @@ function faceToward(dx: number, dy: number): Face {
   return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? '+x' : '-x') : dy > 0 ? '+y' : '-y';
 }
 
-function nearestNode([x, y]: Pt): string {
-  let best = 'c2';
+function nearestNode(L: Layout, [x, y]: Pt): string {
+  let best = L.start;
   let d = Infinity;
-  for (const [id, [nx, ny]] of Object.entries(N)) {
+  for (const [id, [nx, ny]] of Object.entries(L.nodes)) {
     const dd = Math.hypot(nx - x, ny - y);
     if (dd < d) ((d = dd), (best = id));
   }

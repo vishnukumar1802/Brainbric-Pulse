@@ -9,6 +9,7 @@ import { AgentFace } from '../AgentFace';
 import { AgentToggle, AllAgentsToggle } from '../AgentToggle';
 import dynamic from 'next/dynamic';
 import { drawOffice, LH, LW, personColor, type Hit } from './scene';
+import { HQ } from './hqLayout';
 import { OfficeSim, type LiveStepEvent } from './sim';
 
 const FLOOR_LABEL: Record<FloorKey, string> = { g: 'Ground floor', f: 'First floor' };
@@ -68,6 +69,9 @@ export function OfficeView({ data }: { data: OfficeData }) {
   // One simulation per floor, kept alive while you look at the other floor.
   const simsRef = useRef<Record<FloorKey, OfficeSim> | null>(null);
   if (!simsRef.current) simsRef.current = { g: new OfficeSim(), f: new OfficeSim() };
+  // The 3D office is the premium HQ, with its own floor plan; the same people and live steps drive both.
+  const hqSimsRef = useRef<Record<FloorKey, OfficeSim> | null>(null);
+  if (!hqSimsRef.current) hqSimsRef.current = { g: new OfficeSim(HQ), f: new OfficeSim(HQ) };
   // What each agent is doing right now, from its live steps (shown on its card).
   const [live, setLive] = useState<Record<string, string>>({});
   // Real 3D on computers that can show it; the drawn office on phones, old browsers, or when chosen.
@@ -107,9 +111,10 @@ export function OfficeView({ data }: { data: OfficeData }) {
 
   // Match the cast to the latest data (someone paused, a new agent, a team member signing in).
   useEffect(() => {
-    const sims = simsRef.current!;
-    sims.g.sync(data.people.filter((p) => p.floor === 'g'), true);
-    sims.f.sync(data.people.filter((p) => p.floor === 'f'), false);
+    for (const sims of [simsRef.current!, hqSimsRef.current!]) {
+      sims.g.sync(data.people.filter((p) => p.floor === 'g'), true);
+      sims.f.sync(data.people.filter((p) => p.floor === 'f'), false);
+    }
   }, [data]);
 
   // Live steps: what happened in the last 15 minutes sets the scene; after that every new step is acted out.
@@ -118,13 +123,15 @@ export function OfficeView({ data }: { data: OfficeData }) {
     let stop = false;
     let refreshAt = 0;
     const apply = (events: LiveStepEvent[], replay: boolean) => {
-      const sims = simsRef.current!;
+      const all = [simsRef.current!, hqSimsRef.current!];
       let changed = false;
       const next: Record<string, string | null> = {};
       for (const e of events) {
         lastId = Math.max(lastId, e.id);
-        sims.g.push(e, replay);
-        sims.f.push(e, replay);
+        for (const sims of all) {
+          sims.g.push(e, replay);
+          sims.f.push(e, replay);
+        }
         next[e.agent] = e.step === 'finished' || e.step === 'failed' || e.step === 'mail' ? null : e.text || STEP_TEXT[e.step] || 'Working';
         if (replay && (e.step === 'drafted' || e.step === 'finished' || e.step === 'failed')) changed = true;
       }
@@ -334,7 +341,7 @@ export function OfficeView({ data }: { data: OfficeData }) {
           <div className="w-full">
             <OfficeStage3D
               floor={floor}
-              simsRef={simsRef}
+              simsRef={hqSimsRef}
               ready={floorInfo.ready}
               readyHref={floorInfo.readyHref}
               talks={floorInfo.talks}
