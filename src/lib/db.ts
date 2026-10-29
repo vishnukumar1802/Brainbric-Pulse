@@ -217,9 +217,10 @@ INSERT INTO settings (key, value) VALUES ('agent_names_v1', 'done') ON CONFLICT 
 
 -- Support & DevOps team (step 1 of the delivery side).
 INSERT INTO agents (slug, name, nickname, description, schedule, sort) VALUES
-  ('support-desk', 'Support Desk', 'Kavya', 'Turns client support emails into tickets and drafts a reply in Outlook for the team to send.', 'Every 30 min, 9 AM to 7 PM', 70),
+  ('support-desk', 'Support Desk', 'Kavya', 'Turns client support emails into tickets and drafts a reply in Outlook for the team to send.', 'Every hour, 9 AM to 7 PM', 70),
   ('devops-watch', 'DevOps Watch', 'Aditya', 'Checks the live websites and Vercel deployments and flags anything down or failing. Changes nothing.', '9 AM, 1 PM and 6 PM', 80)
 ON CONFLICT (slug) DO NOTHING;
+UPDATE agents SET schedule = 'Every hour, 9 AM to 7 PM' WHERE slug = 'support-desk' AND schedule = 'Every 30 min, 9 AM to 7 PM';
 
 -- Client support tickets, posted by the Support Desk agent. One per email thread; a reply on the same thread reopens it.
 CREATE TABLE IF NOT EXISTS tickets (

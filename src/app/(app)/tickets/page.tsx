@@ -108,7 +108,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: { st
 
       {tickets.length === 0 ? (
         <Empty title={status === 'open' ? 'No open tickets' : `Nothing ${STATUS_LABEL[status].toLowerCase()}`}>
-          {status === 'open' ? 'New client support emails show up here after Kavya’s next check (every 30 minutes, 9 AM to 7 PM).' : null}
+          {status === 'open' ? 'New client support emails show up here after Kavya’s next check (every hour, 9 AM to 7 PM).' : null}
         </Empty>
       ) : (
         <ul className="card divide-y divide-paper-rule">
