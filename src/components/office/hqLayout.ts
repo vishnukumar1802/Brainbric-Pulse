@@ -96,8 +96,8 @@ export const HQ = makeLayout({
   nodes: N,
   edges: E,
   start: 'aLift',
-  // The Support & DevOps corner (front right).
-  reserved: { 'support-desk': 10, 'devops-watch': 11 },
+  // The delivery team: the lead and the developer in the developer zone, QA beside support and DevOps (front right).
+  reserved: { 'team-lead': 0, developer: 1, 'support-desk': 10, 'devops-watch': 11, 'qa-tester': 12 },
   spots: {
     board: ['bo', 'bo2'],
     mail: 'mm',
@@ -131,5 +131,5 @@ export const HQ_ROOMS = [
   { key: 'mail', name: 'Mail room', at: [2.2, 15.6] as Pt, h: 0.05 },
   { key: 'focus', name: 'Focus pods', at: [7.0, 15.6] as Pt, h: 0.05 },
   { key: 'reception', name: 'Reception', at: [12.3, 15.6] as Pt, h: 0.05 },
-  { key: 'future', name: 'Support & DevOps', at: [19.6, 15.6] as Pt, h: 0.05 },
+  { key: 'future', name: 'Support, QA & DevOps', at: [19.6, 15.6] as Pt, h: 0.05 },
 ] as const;

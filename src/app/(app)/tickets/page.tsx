@@ -1,7 +1,8 @@
 import Link from 'next/link';
-import { setTicketStatusAction } from '@/app/actions';
+import { setTicketStatusAction, ticketToLeadAction } from '@/app/actions';
 import { Card, Empty, PageHeader } from '@/components/ui';
 import { requirePermission } from '@/lib/auth';
+import { can } from '@/lib/permissions';
 import { fmtAgo } from '@/lib/format';
 import { CATEGORY_LABEL, listTickets, STATUS_LABEL, supportRules, ticketCounts, TICKET_STATUSES, type Ticket, type TicketStatus } from '@/lib/support';
 import { RulesForm } from './RulesForm';
@@ -27,7 +28,7 @@ function StatusButton({ id, status, children, primary = false }: { id: number; s
   );
 }
 
-function TicketRow({ t }: { t: Ticket }) {
+function TicketRow({ t, canLead }: { t: Ticket; canLead: boolean }) {
   const p = PRIORITY[t.priority] ?? PRIORITY.normal;
   const who = [t.from_name || t.from_email, t.company].filter(Boolean).join(' · ');
   return (
@@ -67,6 +68,14 @@ function TicketRow({ t }: { t: Ticket }) {
             <a href={t.web_link} target="_blank" rel="noreferrer" className="btn-outlook">
               Open in Outlook
             </a>
+          )}
+          {canLead && t.status !== 'solved' && (
+            <form action={ticketToLeadAction}>
+              <input type="hidden" name="id" value={t.id} />
+              <button type="submit" className="btn" title="Make this a change request for the Team Lead">
+                Send to Arvind
+              </button>
+            </form>
           )}
           {t.status !== 'waiting' && t.status !== 'solved' && <StatusButton id={t.id} status="waiting">Replied, waiting</StatusButton>}
           {t.status !== 'solved' ? (
@@ -113,7 +122,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: { st
       ) : (
         <ul className="card divide-y divide-paper-rule">
           {tickets.map((t) => (
-            <TicketRow key={t.id} t={t} />
+            <TicketRow key={t.id} t={t} canLead={can(user, 'projects')} />
           ))}
         </ul>
       )}

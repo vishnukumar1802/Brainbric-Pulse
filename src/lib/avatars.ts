@@ -30,6 +30,9 @@ export const AGENT_AVATARS: Record<string, AgentAvatar> = {
   'mail-watcher': { name: 'Vikram', photo: false, look: { skin: '#A97650', hair: '#16110D', style: 'short', top: '#9DBBE0', inner: '#9DBBE0', pants: '#3A4252', headset: true } },
   'support-desk': { name: 'Kavya', photo: false, look: { skin: '#B5805C', hair: '#16100C', style: 'long', top: '#1C1C1F', inner: '#F4F4F2', pants: '#1F1F23', headset: true } },
   'devops-watch': { name: 'Aditya', photo: false, look: { skin: '#A8714C', hair: '#120D0A', style: 'short', top: '#2A3552', inner: '#E9EEF5', pants: '#262B38', glasses: true } },
+  'team-lead': { name: 'Arvind', photo: false, look: { skin: '#A8714C', hair: '#16100C', style: 'short', top: '#1A1A1D', inner: '#F4F4F2', pants: '#1F1F23', beard: true } },
+  developer: { name: 'Nikhil', photo: false, look: { skin: '#B07A55', hair: '#15100D', style: 'short', top: '#4A5A6E', inner: '#DADFE6', pants: '#2B2F3A', headset: true } },
+  'qa-tester': { name: 'Pooja', photo: false, look: { skin: '#C08A62', hair: '#1A110D', style: 'ponytail', top: '#7B5EA7', inner: '#F1E9DA', pants: '#2D2F36', glasses: true } },
 };
 
 export function agentPhoto(slug: string | null | undefined, kind: 'face' | 'card' = 'face'): string | null {

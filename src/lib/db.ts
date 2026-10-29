@@ -260,6 +260,82 @@ CREATE TABLE IF NOT EXISTS site_checks (
   checked_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS site_checks_target_idx ON site_checks(target, checked_at);
+
+-- Delivery team (step 2): a Team Lead who plans requests and runs a Developer and a QA Tester.
+INSERT INTO agents (slug, name, nickname, description, schedule, sort) VALUES
+  ('team-lead', 'Team Lead', 'Arvind', 'Takes your change and new-project requests, plans them, assigns the team and reports back. Waits for your OK on the plan and before going live.', 'Every hour, 9 AM to 7 PM', 90),
+  ('developer', 'Developer', 'Nikhil', 'Builds the planned tasks on a separate GitHub branch and opens a pull request. Never touches the live site.', 'Every hour, 9 AM to 7 PM', 91),
+  ('qa-tester', 'QA Tester', 'Pooja', 'Tests every pull request and its preview site and reports passed or changes needed.', 'Every hour, 9 AM to 7 PM', 92)
+ON CONFLICT (slug) DO NOTHING;
+
+-- Projects the team works on: a GitHub repository and where it is hosted.
+CREATE TABLE IF NOT EXISTS projects (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  repo TEXT,
+  live_url TEXT,
+  vercel_project TEXT,
+  description TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO projects (name, repo, live_url, vercel_project, description) VALUES
+  ('Brainbric Pulse', 'vishnukumar1802/Brainbric-Pulse', 'https://brainbric-pulse.vercel.app', 'brainbric-pulse', 'This portal: leads, AI team, office.'),
+  ('BBI HR Management System', 'vishnukumar1802/BBI_HR_MANAGEMENT_SYSTEM', NULL, 'bbi-hr-management-system', 'HR management system.'),
+  ('Insuvai Restaurant', 'vishnukumar1802/Insuvai_Restaurant', NULL, NULL, 'Restaurant ordering: customer site, admin, kitchen and server apps.')
+ON CONFLICT (name) DO NOTHING;
+
+-- Requests to the Team Lead. Status: new -> planning -> plan_ready (checkpoint 1) -> approved -> building -> ready (checkpoint 2)
+-- -> going_live -> live. Also: questions (the lead asks you something), cancelled.
+CREATE TABLE IF NOT EXISTS lead_requests (
+  id SERIAL PRIMARY KEY,
+  kind TEXT NOT NULL,
+  project_id INT,
+  title TEXT NOT NULL,
+  brief TEXT NOT NULL,
+  deadline DATE,
+  status TEXT NOT NULL DEFAULT 'new',
+  plan TEXT,
+  questions TEXT,
+  reply TEXT,
+  preview_url TEXT,
+  pr_url TEXT,
+  live_url TEXT,
+  summary TEXT,
+  ticket_id INT,
+  created_by TEXT,
+  approved_by TEXT,
+  approved_at TIMESTAMPTZ,
+  live_approved_by TEXT,
+  live_approved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS lead_requests_status_idx ON lead_requests(status, updated_at);
+
+-- The plan's tasks. Status: planned -> todo -> in_progress -> testing -> passed | changes_needed -> done.
+CREATE TABLE IF NOT EXISTS dev_tasks (
+  id SERIAL PRIMARY KEY,
+  request_id INT NOT NULL,
+  seq INT NOT NULL DEFAULT 0,
+  title TEXT NOT NULL,
+  details TEXT,
+  role TEXT NOT NULL DEFAULT 'developer',
+  status TEXT NOT NULL DEFAULT 'planned',
+  report TEXT,
+  attempts INT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS dev_tasks_request_idx ON dev_tasks(request_id, seq);
+
+-- What happened on a request, for its timeline.
+CREATE TABLE IF NOT EXISTS lead_log (
+  id SERIAL PRIMARY KEY,
+  request_id INT NOT NULL,
+  who TEXT NOT NULL,
+  text TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS lead_log_request_idx ON lead_log(request_id, created_at);
 `;
 
 const globalForDb = globalThis as unknown as { pulseDb?: Promise<Driver> };

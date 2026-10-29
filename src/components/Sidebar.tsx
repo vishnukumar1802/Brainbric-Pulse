@@ -11,6 +11,7 @@ import {
   Target,
   Users,
   Activity,
+  Briefcase,
 } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import { can } from "@/lib/permissions";
@@ -35,7 +36,7 @@ export function SidebarContent({
 }: {
   user: User;
   agents: Agent[];
-  counts: { drafted: number; hot: number; colleges: number; tickets: number; down: number };
+  counts: { drafted: number; hot: number; colleges: number; tickets: number; down: number; lead: number };
   focus: string;
 }) {
   const initials = user.name
@@ -97,6 +98,19 @@ export function SidebarContent({
           <nav className="flex flex-col gap-0.5" aria-label="College programs">
             <NavLink href="/colleges" count={counts.colleges}>
               <GraduationCap size={16} strokeWidth={1.75} /> Colleges
+            </NavLink>
+          </nav>
+        </div>
+      )}
+
+      {can(user, "projects") && (
+        <div className="mt-7">
+          <div className="mb-1.5 px-2.5 text-xs text-ink-500">
+            Delivery
+          </div>
+          <nav className="flex flex-col gap-0.5" aria-label="Delivery">
+            <NavLink href="/lead" count={counts.lead}>
+              <Briefcase size={16} strokeWidth={1.75} /> Team Lead
             </NavLink>
           </nav>
         </div>

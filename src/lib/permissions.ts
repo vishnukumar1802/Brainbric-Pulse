@@ -7,6 +7,7 @@ export const PERMISSIONS = [
   { key: 'focus', label: 'Change the focus', hint: 'Pick the service the agents hunt for' },
   { key: 'agents', label: 'AI team', hint: 'See the agents and pause or start them' },
   { key: 'support', label: 'Support & DevOps', hint: 'Client tickets and the health of the live sites' },
+  { key: 'projects', label: 'Team Lead', hint: 'Send change and new-project requests to the Team Lead and follow them' },
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number]['key'];

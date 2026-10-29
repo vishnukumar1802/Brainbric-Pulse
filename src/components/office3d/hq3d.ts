@@ -465,8 +465,8 @@ export function buildHQ(floor: FloorKey): HQHandles {
   const leg = std('#1c1c1f', 0.35, 0.6);
   HQ_DESKS.forEach(([dx, dz], i) => {
     const isDev = HQ_ZONES.developers.includes(i);
-    // Support (10) and DevOps (11) are staffed on the ground floor; the last desk stays free for the next team.
-    const isFuture = HQ_ZONES.future.includes(i) && (floor !== 'g' || i === 12);
+    // Support (10), DevOps (11) and QA (12) work on the ground floor; on the first floor the corner is still free.
+    const isFuture = HQ_ZONES.future.includes(i) && floor !== 'g';
     box(g, dx, dz, 2.0, 1.1, 0.72, 0.035, deskTop);
     box(g, dx, dz + 1.08, 2.0, 0.03, 0.69, 0.06, deskEdge);
     for (const lx of [0.05, 1.89]) box(g, dx + lx, dz + 0.1, 0.06, 0.9, 0, 0.72, leg);

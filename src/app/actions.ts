@@ -13,6 +13,7 @@ import { collegeTemplate, ensureShareToken, getPriceGuide, getProposal, insertPr
 import { SERVICES } from '@/lib/services';
 import { STATUSES } from '@/lib/status';
 import { setTicketStatus, TICKET_STATUSES, type TicketStatus } from '@/lib/support';
+import { createRequest, decide, saveProject } from '@/lib/lead';
 
 export type FormState = { error?: string; ok?: string; credentials?: { username: string; password: string } } | undefined;
 
@@ -516,4 +517,79 @@ export async function saveDevopsSitesAction(_: FormState, form: FormData): Promi
   await setSetting('devops_sites', [...new Set(lines)].join('\n'));
   revalidatePath('/devops');
   return { ok: `Saved ${lines.length} ${lines.length === 1 ? 'site' : 'sites'}. Checked from the next run.` };
+}
+
+// ---------- Team Lead ----------
+
+const LeadRequestForm = z.object({
+  kind: z.enum(['change', 'new']),
+  project_id: z.string().optional(),
+  title: z.string().trim().min(4, 'Give the request a short title.').max(160),
+  brief: z.string().trim().min(15, 'Describe what you want in a few sentences.').max(8000),
+  deadline: z.union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]).optional(),
+});
+
+export async function createLeadRequestAction(_: FormState, form: FormData): Promise<FormState> {
+  const user = await requirePermission('projects');
+  const parsed = LeadRequestForm.safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+  const projectId = d.kind === 'change' ? Number(d.project_id) : null;
+  if (d.kind === 'change' && !Number.isInteger(projectId)) return { error: 'Pick the project to change.' };
+  const id = await createRequest({ kind: d.kind, project_id: projectId, title: d.title, brief: d.brief, deadline: d.deadline || null, by: user.name });
+  revalidatePath('/lead');
+  redirect(`/lead/${id}`);
+}
+
+/** The two checkpoints (approve the plan, approve going live), answers and cancelling. Admins only. */
+export async function decideRequestAction(_: FormState, form: FormData): Promise<FormState> {
+  const user = await requireAdmin();
+  const id = Number(form.get('id'));
+  const action = String(form.get('action') ?? '');
+  if (!Number.isInteger(id) || !['approve_plan', 'change_plan', 'answer', 'approve_live', 'cancel'].includes(action)) return { error: 'Unknown action.' };
+  const err = await decide(id, action as Parameters<typeof decide>[1], user.name, String(form.get('note') ?? ''));
+  if (err) return { error: err };
+  revalidatePath(`/lead/${id}`);
+  revalidatePath('/lead');
+  revalidatePath('/', 'layout');
+  const done: Record<string, string> = {
+    approve_plan: 'Plan approved. Arvind starts the team on his next check.',
+    change_plan: 'Sent to Arvind. He will update the plan on his next check.',
+    answer: 'Answer sent. Arvind continues planning on his next check.',
+    approve_live: 'Approved. Arvind takes it live on his next check.',
+    cancel: 'Request cancelled.',
+  };
+  return { ok: done[action] };
+}
+
+export async function saveProjectAction(_: FormState, form: FormData): Promise<FormState> {
+  await requireAdmin();
+  const name = String(form.get('name') ?? '').trim();
+  const repo = String(form.get('repo') ?? '').trim().replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '');
+  const live = String(form.get('live_url') ?? '').trim();
+  if (name.length < 2) return { error: 'Give the project a name.' };
+  if (repo && !/^[\w.-]+\/[\w.-]+$/.test(repo)) return { error: 'GitHub repository as owner/name, for example vishnukumar1802/my-site.' };
+  if (live && !/^https:\/\/\S+$/.test(live)) return { error: 'Live site must start with https://' };
+  await saveProject({ name, repo: repo || null, live_url: live || null, description: String(form.get('description') ?? '').trim() || null });
+  revalidatePath('/lead');
+  return { ok: `Saved ${name}.` };
+}
+
+/** Turn a support ticket into a change request for the Team Lead. */
+export async function ticketToLeadAction(form: FormData): Promise<void> {
+  const user = await requirePermission('projects');
+  const id = Number(form.get('id'));
+  const t = await one<{ subject: string | null; summary: string | null; company: string | null; from_name: string | null }>('SELECT subject, summary, company, from_name FROM tickets WHERE id = $1', [id]);
+  if (!t) return;
+  const projectId = Number(form.get('project_id')) || null;
+  const rid = await createRequest({
+    kind: 'change',
+    project_id: projectId,
+    title: (t.subject || 'Client support request').slice(0, 160),
+    brief: `From a client support ticket (${[t.from_name, t.company].filter(Boolean).join(', ') || 'client'}):\n\n${t.summary ?? ''}`,
+    deadline: null,
+    by: user.name,
+    ticket_id: id,
+  });
+  redirect(`/lead/${rid}`);
 }
