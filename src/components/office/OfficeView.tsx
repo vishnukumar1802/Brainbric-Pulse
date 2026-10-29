@@ -1,12 +1,13 @@
 'use client';
 
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Box as BoxIcon, Maximize2, Minimize2, Square } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import type { FloorKey, OfficeData, OfficePerson } from '@/lib/office';
 import { AgentFace } from '../AgentFace';
 import { AgentToggle, AllAgentsToggle } from '../AgentToggle';
+import dynamic from 'next/dynamic';
 import { drawOffice, LH, LW, personColor, type Hit } from './scene';
 import { OfficeSim, type LiveStepEvent } from './sim';
 
@@ -44,6 +45,13 @@ const STEP_TEXT: Record<string, string> = {
   note: 'Working',
 };
 
+// The real 3D office (three.js) loads only when it is shown.
+const OfficeStage3D = dynamic(() => import('../office3d/OfficeStage3D').then((m) => m.OfficeStage3D), {
+  ssr: false,
+  loading: () => <div className="grid aspect-[900/540] w-full place-items-center text-sm text-ink-700">Loading the 3D office…</div>,
+});
+const MODE_KEY = 'pulse-office-mode';
+
 /** The Overview as a live 3D office: one floor for software services, one for college programs. */
 export function OfficeView({ data }: { data: OfficeData }) {
   const router = useRouter();
@@ -62,6 +70,32 @@ export function OfficeView({ data }: { data: OfficeData }) {
   if (!simsRef.current) simsRef.current = { g: new OfficeSim(), f: new OfficeSim() };
   // What each agent is doing right now, from its live steps (shown on its card).
   const [live, setLive] = useState<Record<string, string>>({});
+  // Real 3D on computers that can show it; the drawn office on phones, old browsers, or when chosen.
+  const [mode, setMode] = useState<'2d' | '3d'>('2d');
+  useEffect(() => {
+    let saved: string | null = null;
+    try {
+      saved = window.localStorage.getItem(MODE_KEY);
+    } catch {
+      // Private window: no saved choice.
+    }
+    const gl = (() => {
+      try {
+        return Boolean(document.createElement('canvas').getContext('webgl2'));
+      } catch {
+        return false;
+      }
+    })();
+    if (gl && (saved === '3d' || (saved == null && window.innerWidth >= 900))) setMode('3d');
+  }, []);
+  const switchMode = (m: '2d' | '3d') => {
+    setMode(m);
+    try {
+      window.localStorage.setItem(MODE_KEY, m);
+    } catch {
+      // Not saved; fine.
+    }
+  };
 
   const floorInfo = data.floors.find((f) => f.key === floor) ?? data.floors[0];
   const other = data.floors.find((f) => f.key !== floor) ?? null;
@@ -166,7 +200,6 @@ export function OfficeView({ data }: { data: OfficeData }) {
     });
     ro.observe(cv);
     let raf = 0;
-    const start = performance.now();
     const tick = (t: number) => {
       // Big gaps (a background tab) are not replayed as one long jump across the room.
       const dt = Math.min(0.25, Math.max(0, t - clockRef.current));
@@ -176,7 +209,8 @@ export function OfficeView({ data }: { data: OfficeData }) {
       draw(t);
     };
     const loop = (n: number) => {
-      tick((n - start) / 1000);
+      // One clock for both views (seconds since the page opened), so switching 2D/3D keeps everyone's timing.
+      tick(n / 1000);
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
@@ -184,7 +218,7 @@ export function OfficeView({ data }: { data: OfficeData }) {
       ro.disconnect();
       cancelAnimationFrame(raf);
     };
-  }, []);
+  }, [mode]);
 
   // Redraw at once when the floor, selection or data change, even if the tab is not animating.
   useEffect(() => {
@@ -296,6 +330,24 @@ export function OfficeView({ data }: { data: OfficeData }) {
             : 'relative rounded-xl border border-paper-line bg-[#EFEDEA] p-2'
         }
       >
+        {mode === '3d' ? (
+          <div className="w-full">
+            <OfficeStage3D
+              floor={floor}
+              simsRef={simsRef}
+              ready={floorInfo.ready}
+              readyHref={floorInfo.readyHref}
+              talks={floorInfo.talks}
+              talksHref={floorInfo.talksHref}
+              otherFloor={other ? FLOOR_LABEL[other.key] : null}
+              selected={selected}
+              full={isFull}
+              onSelect={(id) => setSelected((s) => (s === id ? null : id))}
+              onNavigate={(href) => router.push(href)}
+              onLift={() => other && goFloor(other.key)}
+            />
+          </div>
+        ) : (
         <canvas
           ref={canvasRef}
           className="block aspect-[900/540] max-w-full cursor-default"
@@ -313,9 +365,18 @@ export function OfficeView({ data }: { data: OfficeData }) {
             else if (h.href) router.push(h.href);
           }}
         />
+        )}
         <div className={`absolute flex items-center gap-2 ${isFull ? 'left-4 right-4 top-4' : 'right-4 top-4'}`}>
           {isFull && <div className="mr-auto">{floorSwitch}</div>}
           {isFull && allToggle}
+          <button
+            type="button"
+            onClick={() => switchMode(mode === '3d' ? '2d' : '3d')}
+            className="btn-ghost h-8 bg-white px-2.5 text-xs"
+            title={mode === '3d' ? 'Show the drawn office (lighter)' : 'Show the real 3D office'}
+          >
+            {mode === '3d' ? <Square size={14} /> : <BoxIcon size={14} />} {mode === '3d' ? '2D' : '3D'}
+          </button>
           <button type="button" onClick={toggleFull} className="btn-ghost h-8 bg-white px-2.5 text-xs">
             {isFull ? <Minimize2 size={14} /> : <Maximize2 size={14} />} {isFull ? 'Exit full screen' : 'Full screen'}
           </button>

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, Box, Building2, LayoutList } from 'lucide-react';
+import { ArrowRight, Building2, LayoutList } from 'lucide-react';
 import { Card, Empty, FitScore, KpiStrip, PageHeader, StatusBadge, ViewAll } from '@/components/ui';
 import { AgentToggle, AllAgentsToggle } from '@/components/AgentToggle';
 import { LeadQuickActions } from '@/components/LeadActions';
@@ -310,9 +310,6 @@ async function OfficeOverview({ user }: { user: User }) {
         meta={new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })}
         actions={
           <>
-            <Link href="/office-3d" className="btn-ghost">
-              <Box size={15} /> 3D preview
-            </Link>
             <Link href="/?view=classic" className="btn-ghost">
               <LayoutList size={15} /> Classic view
             </Link>
