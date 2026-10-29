@@ -1,6 +1,7 @@
 import 'server-only';
 import { getSetting, q } from './db';
 import { addLiveEvents } from './live';
+import { PORTAL_URL, postNews } from './news';
 
 /**
  * The DevOps Watch agent (Aditya): checks the websites listed in Settings and the latest Vercel deployments a few
@@ -59,6 +60,9 @@ export async function addChecks(items: CheckIn[], summary: string | null): Promi
       ? [{ step: 'note', text: `Problem: ${down[0].target}${down[0].note ? ` (${down[0].note})` : ''}` }, { step: 'finished', text: `${down.length} to fix` }]
       : [{ step: 'finished', text: 'All systems OK' }],
   );
+  if (down.length) {
+    await postNews(DEVOPS_AGENT, `${down.length} ${down.length === 1 ? 'problem' : 'problems'} found:\n${down.map((c) => `- ${c.target}${c.note ? `: ${c.note}` : ''}`).join('\n')}\n${PORTAL_URL}/devops`);
+  }
   // Keep a month of checks.
   if (Math.random() < 0.1) await q("DELETE FROM site_checks WHERE checked_at < now() - interval '30 days'");
   return items.length;

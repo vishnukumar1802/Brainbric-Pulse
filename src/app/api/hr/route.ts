@@ -4,6 +4,7 @@ import { agentAuthorized } from '@/lib/agentAuth';
 import { q } from '@/lib/db';
 import { HR_AGENT, hrQueue, proposeHires, SLUG_RE } from '@/lib/hr';
 import { agentPaused } from '@/lib/lead';
+import { takeNotes } from '@/lib/chat';
 import { addLiveEvents } from '@/lib/live';
 
 export const dynamic = 'force-dynamic';
@@ -18,9 +19,10 @@ export async function GET(req: Request) {
   if (!agentAuthorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   if (await agentPaused(HR_AGENT)) return NextResponse.json({ run: false, reason: 'paused' }, { headers: { 'Cache-Control': 'no-store' } });
   const queue = await hrQueue();
-  const run = queue.unfilled_roles.length > 0 || queue.requests.some((r) => r.status === 'plan_ready');
+  const instructions = await takeNotes(HR_AGENT);
+  const run = instructions.length > 0 || queue.unfilled_roles.length > 0 || queue.requests.some((r) => r.status === 'plan_ready');
   if (run) await addLiveEvents(HR_AGENT, [{ step: 'started', text: null }, { step: 'searching', text: 'Checking the team against the plans' }]);
-  return NextResponse.json({ run, ...queue }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json({ run, instructions, ...queue }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
 const Hire = z.object({

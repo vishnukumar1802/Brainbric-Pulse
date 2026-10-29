@@ -2,6 +2,7 @@ import 'server-only';
 import { getSetting, one, q, setSetting } from './db';
 import { addLiveEvents } from './live';
 import { istHour } from './mail';
+import { PORTAL_URL, postNews } from './news';
 
 /**
  * The Support Desk agent (Kavya): reads client support mail, keeps one ticket per email thread here and leaves a
@@ -125,6 +126,9 @@ export async function addTickets(items: TicketIn[]): Promise<{ added: number; up
     if (!rows.length) continue;
     if (rows[0].inserted) added++;
     else updated++;
+    if (t.priority === 'urgent' || t.priority === 'high') {
+      await postNews(SUPPORT_AGENT, `${t.priority === 'urgent' ? 'URGENT' : 'High priority'} ticket from ${[t.from_name, t.company].filter(Boolean).join(', ') || 'a client'}: ${t.subject ?? ''}\n${t.summary}\nReply draft is in Outlook. ${PORTAL_URL}/tickets`);
+    }
     await addLiveEvents(SUPPORT_AGENT, [{ step: 'drafted', text: `Reply drafted: ${t.subject || t.from_name || 'ticket'}` }]);
   }
   return { added, updated };

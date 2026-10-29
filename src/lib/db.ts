@@ -363,6 +363,46 @@ CREATE TABLE IF NOT EXISTS hires (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- The Teams channel: the Teams Desk agent reads the owner's messages and posts the team's replies and news.
+INSERT INTO agents (slug, name, description, schedule, sort) VALUES
+  ('teams-desk', 'Teams Desk', 'Reads your messages in the AI team channel on Microsoft Teams, passes work to the right agent and posts their replies and news.', 'Every 2 min, 9 AM to 9 PM', 5)
+ON CONFLICT (slug) DO NOTHING;
+
+-- Messages from the channel that were handled (so none is handled twice).
+CREATE TABLE IF NOT EXISTS chat_inbox (
+  id SERIAL PRIMARY KEY,
+  message_id TEXT NOT NULL UNIQUE,
+  sender TEXT,
+  text TEXT,
+  agent TEXT,
+  intent TEXT,
+  reply TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- News for the channel, posted by the Teams Desk on its next round.
+CREATE TABLE IF NOT EXISTS chat_outbox (
+  id SERIAL PRIMARY KEY,
+  agent TEXT NOT NULL,
+  text TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  sent_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS chat_outbox_unsent_idx ON chat_outbox(sent_at, id);
+
+-- Notes the owner gave an agent in the channel; the agent gets them at its next check-in.
+CREATE TABLE IF NOT EXISTS agent_notes (
+  id SERIAL PRIMARY KEY,
+  agent TEXT NOT NULL,
+  text TEXT NOT NULL,
+  from_name TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  picked_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS agent_notes_agent_idx ON agent_notes(agent, picked_at);
+-- The owner's Teams (Microsoft 365) user id: the only sender the channel takes work and approvals from, to begin with.
+INSERT INTO settings (key, value) VALUES ('chat_allowed_ids', 'ef426f8a-d763-49b6-bd3a-5b46d77330e9') ON CONFLICT (key) DO NOTHING;
 `;
 
 const globalForDb = globalThis as unknown as { pulseDb?: Promise<Driver> };

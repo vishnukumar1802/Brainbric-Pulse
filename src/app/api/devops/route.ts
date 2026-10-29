@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { agentAuthorized } from '@/lib/agentAuth';
 import { one } from '@/lib/db';
 import { addChecks, DEVOPS_AGENT, watchedSites } from '@/lib/devops';
+import { takeNotes } from '@/lib/chat';
 import { addLiveEvents } from '@/lib/live';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +18,7 @@ export async function GET(req: Request) {
   const row = await one<{ paused: boolean }>('SELECT paused FROM agents WHERE slug = $1', [DEVOPS_AGENT]);
   if (row?.paused) return NextResponse.json({ run: false, reason: 'paused' }, { headers: { 'Cache-Control': 'no-store' } });
   await addLiveEvents(DEVOPS_AGENT, [{ step: 'started', text: null }, { step: 'searching', text: 'Checking sites and deployments' }]);
-  return NextResponse.json({ run: true, sites: await watchedSites() }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json({ run: true, sites: await watchedSites(), instructions: await takeNotes(DEVOPS_AGENT) }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
 const Check = z.object({

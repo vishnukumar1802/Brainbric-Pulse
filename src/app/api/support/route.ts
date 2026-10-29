@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { agentAuthorized } from '@/lib/agentAuth';
 import { one, q } from '@/lib/db';
+import { takeNotes } from '@/lib/chat';
 import { addLiveEvents } from '@/lib/live';
 import { addTickets, finishSupportRun, startSupportRun, SUPPORT_AGENT, supportCursor, supportRules, supportShouldRun, TICKET_CATEGORIES, TICKET_PRIORITIES } from '@/lib/support';
 
@@ -20,7 +21,7 @@ export async function GET(req: Request) {
   const since = await supportCursor();
   await startSupportRun();
   await addLiveEvents(SUPPORT_AGENT, [{ step: 'started', text: null }, { step: 'searching', text: 'Reading support mail' }]);
-  const body = { run: true, since, rules: await supportRules() };
+  const body = { run: true, since, rules: await supportRules(), instructions: await takeNotes(SUPPORT_AGENT) };
   return NextResponse.json(body, { headers: { 'Cache-Control': 'no-store' } });
 }
 

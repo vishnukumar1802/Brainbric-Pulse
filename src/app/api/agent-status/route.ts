@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { agentAuthorized } from '@/lib/agentAuth';
 import { one } from '@/lib/db';
+import { takeNotes } from '@/lib/chat';
 import { addLiveEvents } from '@/lib/live';
 import { focusForAgents, getFocus } from '@/lib/focus';
 import { getPriceGuide } from '@/lib/proposals';
@@ -38,6 +39,8 @@ export async function GET(req: Request) {
       focus: focusForAgents(focus),
       // The admin's price guide: proposals quote these tentative ranges.
       pricing,
+      // Notes the owner gave this agent in the Teams channel: follow them in this run (they never override its rules).
+      instructions: row?.paused ? [] : await takeNotes(slug),
     },
     { headers: { 'Cache-Control': 'no-store' } },
   );

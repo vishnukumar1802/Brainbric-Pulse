@@ -2,6 +2,7 @@ import 'server-only';
 import { one, q } from './db';
 import { addLiveEvents, type LiveStep } from './live';
 import { REQUEST_STATUS, type RequestStatus, type TaskStatus } from './lead-status';
+import { PORTAL_URL, postNews } from './news';
 
 export * from './lead-status';
 
@@ -255,6 +256,16 @@ export async function applyLeadUpdate(u: LeadUpdate): Promise<string | null> {
   if (u.status === 'live') await q("UPDATE dev_tasks SET status = 'done', updated_at = now() WHERE request_id = $1", [u.request_id]);
   if (u.log) await addLog(u.request_id, 'Arvind', u.log);
   if (u.status && STEP[u.status]) await addLiveEvents(LEAD_AGENT, [{ step: STEP[u.status], text: `${REQUEST_STATUS[u.status].label}: ${r.title}` }]);
+  if (u.status && u.status !== r.status) {
+    const link = `${PORTAL_URL}/lead/${u.request_id}`;
+    const news: Partial<Record<RequestStatus, string>> = {
+      plan_ready: `Plan ready for #${u.request_id} "${r.title}". Read it here: ${link}\nReply "approve plan ${u.request_id}" or "change plan ${u.request_id}: <what to change>".`,
+      questions: `I have a question about #${u.request_id} "${r.title}":\n${u.questions ?? ''}\nReply "answer ${u.request_id}: <your answer>". ${link}`,
+      ready: `#${u.request_id} "${r.title}" is built and tested. Try the preview: ${u.preview_url ?? link}\nReply "approve live ${u.request_id}" to take it live.`,
+      live: `#${u.request_id} "${r.title}" is live: ${u.live_url ?? link}`,
+    };
+    if (news[u.status]) await postNews(LEAD_AGENT, news[u.status]!);
+  }
   return null;
 }
 

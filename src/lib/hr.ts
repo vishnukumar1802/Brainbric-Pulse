@@ -2,6 +2,7 @@ import 'server-only';
 import { one, q } from './db';
 import { addLog, workerRoles } from './lead';
 import { addLiveEvents } from './live';
+import { PORTAL_URL, postNews } from './news';
 
 /**
  * HR (Lakshmi): reads the Team Lead's plans, spots skills the team does not have and proposes specialist agents.
@@ -97,6 +98,7 @@ export async function proposeHires(items: HireIn[]): Promise<{ added: number; sk
     }
     added++;
     await addLiveEvents(HR_AGENT, [{ step: 'drafted', text: `Proposed a hire: ${h.name}, ${h.title}` }]);
+    await postNews(HR_AGENT, `New hiring proposal #${rows[0].id}: ${h.name}, ${h.title}. ${h.summary}\nDetails: ${PORTAL_URL}/hiring\nReply "approve hire ${rows[0].id}" or "decline hire ${rows[0].id}".`);
     if (h.request_id) await addLog(h.request_id, 'Lakshmi', `Proposed hiring ${h.name} (${h.title}) for this project. Waiting for your approval on the Hiring page.`);
   }
   return { added, skipped };
