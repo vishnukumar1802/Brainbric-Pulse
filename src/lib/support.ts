@@ -1,5 +1,5 @@
 import 'server-only';
-import { getSetting, one, q } from './db';
+import { getSetting, one, q, setSetting } from './db';
 import { addLiveEvents } from './live';
 import { istHour } from './mail';
 
@@ -63,12 +63,23 @@ export async function supportRules(): Promise<string> {
   return (await getSetting('support_rules'))?.trim() || DEFAULT_SUPPORT_RULES;
 }
 
-/** Look for mail after the newest ticket message already posted (the first run looks back two days). */
+/**
+ * Where to look from: the moment the last successful run checked in (so nothing is read twice and no reply is drafted
+ * twice), never before the newest ticket. The first run looks back two days.
+ */
 export async function supportCursor(): Promise<string> {
-  const row = await one<{ last: string | null }>('SELECT MAX(received_at) AS last FROM tickets');
-  const fallback = new Date(Date.now() - 2 * 86400_000);
-  const last = row?.last ? new Date(row.last) : null;
-  return (last && last > fallback ? last : fallback).toISOString();
+  const [row, saved] = await Promise.all([one<{ last: string | null }>('SELECT MAX(received_at) AS last FROM tickets'), getSetting('support_cursor')]);
+  const times = [Date.now() - 2 * 86400_000, saved ? Date.parse(saved) : 0, row?.last ? new Date(row.last).getTime() + 1000 : 0].filter((t) => Number.isFinite(t));
+  return new Date(Math.max(...times)).toISOString();
+}
+
+/** A run checked in: remember when, and move the cursor there once the run posts its results. */
+export async function startSupportRun(): Promise<void> {
+  await setSetting('support_pending', new Date().toISOString());
+}
+export async function finishSupportRun(): Promise<void> {
+  const pending = await getSetting('support_pending');
+  if (pending) await setSetting('support_cursor', pending);
 }
 
 export function supportShouldRun(paused: boolean): { run: false; reason: string } | { run: true } {

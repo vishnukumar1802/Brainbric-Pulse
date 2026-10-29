@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { agentAuthorized } from '@/lib/agentAuth';
 import { one, q } from '@/lib/db';
 import { addLiveEvents } from '@/lib/live';
-import { addTickets, SUPPORT_AGENT, supportCursor, supportRules, supportShouldRun, TICKET_CATEGORIES, TICKET_PRIORITIES } from '@/lib/support';
+import { addTickets, finishSupportRun, startSupportRun, SUPPORT_AGENT, supportCursor, supportRules, supportShouldRun, TICKET_CATEGORIES, TICKET_PRIORITIES } from '@/lib/support';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,8 +16,11 @@ export async function GET(req: Request) {
   if (!agentAuthorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const row = await one<{ paused: boolean }>('SELECT paused FROM agents WHERE slug = $1', [SUPPORT_AGENT]);
   const go = supportShouldRun(Boolean(row?.paused));
-  if (go.run) await addLiveEvents(SUPPORT_AGENT, [{ step: 'started', text: null }, { step: 'searching', text: 'Reading support mail' }]);
-  const body = go.run ? { run: true, since: await supportCursor(), rules: await supportRules() } : go;
+  if (!go.run) return NextResponse.json(go, { headers: { 'Cache-Control': 'no-store' } });
+  const since = await supportCursor();
+  await startSupportRun();
+  await addLiveEvents(SUPPORT_AGENT, [{ step: 'started', text: null }, { step: 'searching', text: 'Reading support mail' }]);
+  const body = { run: true, since, rules: await supportRules() };
   return NextResponse.json(body, { headers: { 'Cache-Control': 'no-store' } });
 }
 
@@ -57,6 +60,7 @@ export async function POST(req: Request) {
   const parsed = z.object({ tickets: z.array(Ticket).max(30), summary: z.string().trim().max(500).nullish() }).safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues.slice(0, 5) }, { status: 400 });
   const { added, updated } = await addTickets(parsed.data.tickets);
+  await finishSupportRun();
   const summary = parsed.data.summary || (added || updated ? `${added} new, ${updated} updated tickets` : 'No new support mail');
   await q('INSERT INTO agent_runs (agent, status, summary, stats) VALUES ($1, $2, $3, $4::text::jsonb)', [
     SUPPORT_AGENT,
