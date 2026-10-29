@@ -12,6 +12,7 @@ import {
   Users,
   Activity,
   Briefcase,
+  UserPlus,
 } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import { can } from "@/lib/permissions";
@@ -36,7 +37,7 @@ export function SidebarContent({
 }: {
   user: User;
   agents: Agent[];
-  counts: { drafted: number; hot: number; colleges: number; tickets: number; down: number; lead: number };
+  counts: { drafted: number; hot: number; colleges: number; tickets: number; down: number; lead: number; hiring: number };
   focus: string;
 }) {
   const initials = user.name
@@ -103,15 +104,22 @@ export function SidebarContent({
         </div>
       )}
 
-      {can(user, "projects") && (
+      {(can(user, "projects") || can(user, "agents")) && (
         <div className="mt-7">
           <div className="mb-1.5 px-2.5 text-xs text-ink-500">
             Delivery
           </div>
           <nav className="flex flex-col gap-0.5" aria-label="Delivery">
-            <NavLink href="/lead" count={counts.lead}>
-              <Briefcase size={16} strokeWidth={1.75} /> Team Lead
-            </NavLink>
+            {can(user, "projects") && (
+              <NavLink href="/lead" count={counts.lead}>
+                <Briefcase size={16} strokeWidth={1.75} /> Team Lead
+              </NavLink>
+            )}
+            {can(user, "agents") && (
+              <NavLink href="/hiring" count={counts.hiring}>
+                <UserPlus size={16} strokeWidth={1.75} /> Hiring
+              </NavLink>
+            )}
           </nav>
         </div>
       )}

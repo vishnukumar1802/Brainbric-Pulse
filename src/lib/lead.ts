@@ -155,18 +155,25 @@ export async function leadQueue() {
     const full = await getRequest(r.id);
     out.push({ ...r, project: full?.project ?? null, tasks: full?.tasks ?? [], recent_log: (full?.log ?? []).slice(0, 10) });
   }
-  return { requests: out, projects: await listProjects() };
+  return { requests: out, projects: await listProjects(), team_roles: await workerRoles() };
+}
+
+/** Who can take build tasks: the developer plus specialists HR hired (approved or active). */
+export async function workerRoles(): Promise<{ slug: string; name: string; title: string }[]> {
+  const hires = await q<{ slug: string; name: string; title: string }>("SELECT slug, name, title FROM hires WHERE status IN ('approved','active') ORDER BY id");
+  return [{ slug: DEV_AGENT, name: 'Nikhil', title: 'Developer' }, ...hires];
 }
 
 /** The branch every task of a request is built on, and so the one pull request people review. */
 export const branchFor = (requestId: number) => `ai/request-${requestId}`;
 
-/** Developer: tasks to build (and ones QA sent back), in plan order, for requests that are building. */
-export async function devQueue() {
+/** A builder (the developer or a hired specialist): its tasks to build and ones QA sent back, in plan order. */
+export async function workQueue(role: string) {
   const tasks = await q<DevTask & { request_title: string; kind: string; project_id: number | null; pr_url: string | null; preview_url: string | null }>(
     `SELECT t.*, r.title AS request_title, r.kind, r.project_id, r.pr_url, r.preview_url FROM dev_tasks t JOIN lead_requests r ON r.id = t.request_id
-      WHERE r.status = 'building' AND t.role = 'developer' AND t.status IN ('todo','changes_needed','in_progress')
+      WHERE r.status = 'building' AND t.role = $1 AND t.status IN ('todo','changes_needed','in_progress')
       ORDER BY r.created_at, t.seq, t.id LIMIT 6`,
+    [role],
   );
   return withProjects(tasks);
 }
@@ -198,7 +205,9 @@ export type LeadUpdate = {
   live_url?: string | null;
   project?: { name: string; repo?: string | null; live_url?: string | null; vercel_project?: string | null; description?: string | null } | null;
   /** The plan's tasks; replaces the planned ones (only while planning). */
-  tasks?: { title: string; details?: string | null; role?: 'developer' | 'qa' | 'devops' }[];
+  tasks?: { title: string; details?: string | null; role?: string }[];
+  /** Hand tasks that are not built yet to another builder, e.g. a specialist HR just hired. */
+  reassign?: { task_id: number; role: string }[];
   /** Move every planned task to "to do" (after the plan is approved). */
   start_tasks?: boolean;
   log?: string | null;
@@ -236,8 +245,11 @@ export async function applyLeadUpdate(u: LeadUpdate): Promise<string | null> {
     await q("DELETE FROM dev_tasks WHERE request_id = $1 AND status = 'planned'", [u.request_id]);
     let seq = 0;
     for (const t of u.tasks.slice(0, 40)) {
-      await q('INSERT INTO dev_tasks (request_id, seq, title, details, role) VALUES ($1, $2, $3, $4, $5)', [u.request_id, ++seq, t.title.slice(0, 200), t.details?.slice(0, 4000) || null, t.role ?? 'developer']);
+      await q('INSERT INTO dev_tasks (request_id, seq, title, details, role) VALUES ($1, $2, $3, $4, $5)', [u.request_id, ++seq, t.title.slice(0, 200), t.details?.slice(0, 4000) || null, t.role ?? DEV_AGENT]);
     }
+  }
+  for (const a of u.reassign ?? []) {
+    await q("UPDATE dev_tasks SET role = $3, updated_at = now() WHERE id = $1 AND request_id = $2 AND status IN ('planned','todo','changes_needed')", [a.task_id, u.request_id, a.role]);
   }
   if (u.start_tasks) await q("UPDATE dev_tasks SET status = 'todo', updated_at = now() WHERE request_id = $1 AND status = 'planned'", [u.request_id]);
   if (u.status === 'live') await q("UPDATE dev_tasks SET status = 'done', updated_at = now() WHERE request_id = $1", [u.request_id]);
@@ -248,19 +260,19 @@ export async function applyLeadUpdate(u: LeadUpdate): Promise<string | null> {
 
 export type TaskUpdate = { task_id: number; status: TaskStatus; report?: string | null; pr_url?: string | null; preview_url?: string | null; log?: string | null };
 
-const ROLE_MOVES: Record<string, Partial<Record<TaskStatus, TaskStatus[]>>> = {
-  [DEV_AGENT]: { todo: ['in_progress', 'testing'], changes_needed: ['in_progress', 'testing'], in_progress: ['testing', 'in_progress'] },
-  [QA_AGENT]: { testing: ['passed', 'changes_needed'] },
-};
+/** Builders (the developer and hired specialists) move their own tasks to testing; QA passes or sends them back. */
+const BUILDER_MOVES: Partial<Record<TaskStatus, TaskStatus[]>> = { todo: ['in_progress', 'testing'], changes_needed: ['in_progress', 'testing'], in_progress: ['testing', 'in_progress'] };
+const QA_MOVES: Partial<Record<TaskStatus, TaskStatus[]>> = { testing: ['passed', 'changes_needed'] };
 
-export async function applyTaskUpdate(agent: typeof DEV_AGENT | typeof QA_AGENT, u: TaskUpdate): Promise<string | null> {
-  const t = await one<{ status: TaskStatus; request_id: number; title: string; req_status: string }>(
-    'SELECT t.status, t.request_id, t.title, r.status AS req_status FROM dev_tasks t JOIN lead_requests r ON r.id = t.request_id WHERE t.id = $1',
+export async function applyTaskUpdate(agent: string, u: TaskUpdate): Promise<string | null> {
+  const t = await one<{ status: TaskStatus; request_id: number; title: string; role: string; req_status: string }>(
+    'SELECT t.status, t.request_id, t.title, t.role, r.status AS req_status FROM dev_tasks t JOIN lead_requests r ON r.id = t.request_id WHERE t.id = $1',
     [u.task_id],
   );
   if (!t) return `task ${u.task_id} not found`;
   if (t.req_status !== 'building') return `task ${u.task_id}: its request is not building`;
-  if (!(ROLE_MOVES[agent][t.status] ?? []).includes(u.status)) return `task ${u.task_id}: ${agent} cannot go from ${t.status} to ${u.status}`;
+  if (agent !== QA_AGENT && t.role !== agent) return `task ${u.task_id} belongs to ${t.role}, not ${agent}`;
+  if (!((agent === QA_AGENT ? QA_MOVES : BUILDER_MOVES)[t.status] ?? []).includes(u.status)) return `task ${u.task_id}: ${agent} cannot go from ${t.status} to ${u.status}`;
   await q(
     `UPDATE dev_tasks SET status = $2, report = COALESCE($3, report), attempts = attempts + CASE WHEN $2 = 'testing' THEN 1 ELSE 0 END, updated_at = now() WHERE id = $1`,
     [u.task_id, u.status, u.report?.slice(0, 6000) ?? null],
@@ -268,7 +280,7 @@ export async function applyTaskUpdate(agent: typeof DEV_AGENT | typeof QA_AGENT,
   if (u.pr_url || u.preview_url) {
     await q('UPDATE lead_requests SET pr_url = COALESCE($2, pr_url), preview_url = COALESCE($3, preview_url), updated_at = now() WHERE id = $1', [t.request_id, u.pr_url ?? null, u.preview_url ?? null]);
   }
-  const who = agent === DEV_AGENT ? 'Nikhil' : 'Pooja';
+  const who = (await one<{ name: string }>('SELECT COALESCE(nickname, name) AS name FROM agents WHERE slug = $1', [agent]))?.name ?? agent;
   const what: Partial<Record<TaskStatus, string>> = {
     in_progress: `Started "${t.title}".`,
     testing: `Built "${t.title}", sent to testing.`,

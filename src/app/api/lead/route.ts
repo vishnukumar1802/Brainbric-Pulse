@@ -40,7 +40,11 @@ const Update = z.object({
     })
     .nullish(),
   tasks: z
-    .array(z.object({ title: z.string().trim().min(3).max(200), details: z.string().max(4000).nullish(), role: z.enum(['developer', 'qa', 'devops']).optional() }))
+    .array(z.object({ title: z.string().trim().min(3).max(200), details: z.string().max(4000).nullish(), role: z.string().regex(/^[a-z][a-z0-9-]{1,40}$/).optional() }))
+    .max(40)
+    .optional(),
+  reassign: z
+    .array(z.object({ task_id: z.number().int().positive(), role: z.string().regex(/^[a-z][a-z0-9-]{1,40}$/) }))
     .max(40)
     .optional(),
   start_tasks: z.boolean().optional(),

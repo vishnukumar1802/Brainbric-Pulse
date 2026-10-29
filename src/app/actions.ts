@@ -14,6 +14,7 @@ import { SERVICES } from '@/lib/services';
 import { STATUSES } from '@/lib/status';
 import { setTicketStatus, TICKET_STATUSES, type TicketStatus } from '@/lib/support';
 import { createRequest, decide, saveProject } from '@/lib/lead';
+import { decideHire } from '@/lib/hr';
 
 export type FormState = { error?: string; ok?: string; credentials?: { username: string; password: string } } | undefined;
 
@@ -592,4 +593,24 @@ export async function ticketToLeadAction(form: FormData): Promise<void> {
     ticket_id: id,
   });
   redirect(`/lead/${rid}`);
+}
+
+// ---------- HR ----------
+
+/** Approve or reject a hiring proposal, or let a hired agent go. Admins only. */
+export async function decideHireAction(_: FormState, form: FormData): Promise<FormState> {
+  const user = await requireAdmin();
+  const id = Number(form.get('id'));
+  const action = String(form.get('action') ?? '');
+  if (!Number.isInteger(id) || !['approve', 'reject', 'retire'].includes(action)) return { error: 'Unknown action.' };
+  const err = await decideHire(id, action as 'approve' | 'reject' | 'retire', user.name, String(form.get('note') ?? '').trim());
+  if (err) return { error: err };
+  revalidatePath('/hiring');
+  revalidatePath('/', 'layout');
+  const done: Record<string, string> = {
+    approve: 'Hired. The new agent is on the AI team; its work starts once its schedule is set up.',
+    reject: 'Proposal declined.',
+    retire: 'Let go. The agent is paused and gets no new work.',
+  };
+  return { ok: done[action] };
 }

@@ -33,6 +33,7 @@ export const AGENT_AVATARS: Record<string, AgentAvatar> = {
   'team-lead': { name: 'Arvind', photo: false, look: { skin: '#A8714C', hair: '#16100C', style: 'short', top: '#1A1A1D', inner: '#F4F4F2', pants: '#1F1F23', beard: true } },
   developer: { name: 'Nikhil', photo: false, look: { skin: '#B07A55', hair: '#15100D', style: 'short', top: '#4A5A6E', inner: '#DADFE6', pants: '#2B2F3A', headset: true } },
   'qa-tester': { name: 'Pooja', photo: false, look: { skin: '#C08A62', hair: '#1A110D', style: 'ponytail', top: '#7B5EA7', inner: '#F1E9DA', pants: '#2D2F36', glasses: true } },
+  'hr-recruiter': { name: 'Lakshmi', photo: false, look: { skin: '#B07A55', hair: '#16100C', style: 'bun', top: '#8C3B4A', inner: '#F1E9DA', pants: '#2D2F36', glasses: true } },
 };
 
 export function agentPhoto(slug: string | null | undefined, kind: 'face' | 'card' = 'face'): string | null {

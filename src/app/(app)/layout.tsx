@@ -22,12 +22,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await requireUser();
   const [agents, counts, focus, teamBcc, firstAdmin] = await Promise.all([
     listAgents(),
-    one<{ drafted: number; hot: number; colleges: number; tickets: number; down: number; lead: number }>(
+    one<{ drafted: number; hot: number; colleges: number; tickets: number; down: number; lead: number; hiring: number }>(
       `SELECT COUNT(*) FILTER (WHERE status = 'drafted' AND kind <> 'college')::int AS drafted,
               COUNT(*) FILTER (WHERE status = 'drafted' AND kind = 'college')::int AS colleges,
               COUNT(*) FILTER (WHERE status IN ('replied','interested','call_booked','proposal') AND kind <> 'college')::int AS hot,
               (SELECT COUNT(*)::int FROM tickets WHERE status = 'open') AS tickets,
               (SELECT COUNT(*)::int FROM lead_requests WHERE status IN ('questions','plan_ready','ready')) AS lead,
+              (SELECT COUNT(*)::int FROM hires WHERE status = 'proposed') AS hiring,
               (SELECT COUNT(*)::int FROM (SELECT DISTINCT ON (kind, target) ok FROM site_checks
                  WHERE checked_at > now() - interval '7 days' ORDER BY kind, target, checked_at DESC) l WHERE NOT l.ok) AS down
          FROM leads`,
@@ -44,7 +45,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     bcc: teamBcc || firstAdmin?.email || null,
     baseUrl: portalBaseUrl(),
   };
-  const sidebar = <SidebarContent user={user} agents={agents} counts={counts ?? { drafted: 0, hot: 0, colleges: 0, tickets: 0, down: 0, lead: 0 }} focus={focusLabel(focus)} />;
+  const sidebar = <SidebarContent user={user} agents={agents} counts={counts ?? { drafted: 0, hot: 0, colleges: 0, tickets: 0, down: 0, lead: 0, hiring: 0 }} focus={focusLabel(focus)} />;
 
   return (
     <SenderProvider sender={sender}>

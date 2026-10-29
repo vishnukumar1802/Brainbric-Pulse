@@ -18,6 +18,7 @@ export const AGENT_MODELS: Record<string, Model> = {
   'team-lead': { file: 'Business_Male_01', sex: 'm' }, // Arvind: black suit
   developer: { file: 'Male_Adult_02', sex: 'm' }, // Nikhil
   'qa-tester': { file: 'Female_Adult_17', sex: 'f' }, // Pooja
+  'hr-recruiter': { file: 'Business_Female_01', sex: 'f' }, // Lakshmi
 };
 
 const TEAM: Model[] = [

@@ -2,24 +2,29 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { agentAuthorized } from '@/lib/agentAuth';
 import { q } from '@/lib/db';
-import { agentPaused, applyTaskUpdate, DEV_AGENT, devQueue, QA_AGENT, qaQueue, TASK_STATUSES } from '@/lib/lead';
+import { isWorker, markHireActive } from '@/lib/hr';
+import { agentPaused, applyTaskUpdate, DEV_AGENT, QA_AGENT, qaQueue, TASK_STATUSES, workQueue } from '@/lib/lead';
 import { addLiveEvents } from '@/lib/live';
 
 export const dynamic = 'force-dynamic';
 
-const ROLE = z.enum([DEV_AGENT, QA_AGENT]);
+/** The QA Tester, the Developer or a specialist HR hired (checked against the hires). */
+const ROLE = z.string().regex(/^[a-z][a-z0-9-]{1,40}$/);
+const allowed = async (slug: string) => slug === QA_AGENT || slug === DEV_AGENT || (await isWorker(slug));
 
 /**
- * The Developer's and the QA Tester's first call each run:
- *   GET /api/team?agent=developer   or   ?agent=qa-tester   (Authorization: Bearer INGEST_TOKEN)
+ * The first call each run of the Developer, the QA Tester and every specialist HR hired:
+ *   GET /api/team?agent=developer   or   ?agent=qa-tester   or   ?agent=<hired slug>   (Authorization: Bearer INGEST_TOKEN)
  * Replies {"run": true, "tasks": [...]} (each with its request, project, repo and branch) or {"run": false}.
  */
 export async function GET(req: Request) {
   if (!agentAuthorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const agent = ROLE.safeParse(new URL(req.url).searchParams.get('agent'));
-  if (!agent.success) return NextResponse.json({ error: 'Pass ?agent=developer or ?agent=qa-tester' }, { status: 400 });
+  if (!agent.success || !(await allowed(agent.data))) return NextResponse.json({ error: 'Pass ?agent=developer, ?agent=qa-tester or a hired agent' }, { status: 400 });
   if (await agentPaused(agent.data)) return NextResponse.json({ run: false, reason: 'paused' }, { headers: { 'Cache-Control': 'no-store' } });
-  const tasks = agent.data === DEV_AGENT ? await devQueue() : await qaQueue();
+  // A hire's first check-in means its routine is set up: it is active from now on.
+  await markHireActive(agent.data);
+  const tasks = agent.data === QA_AGENT ? await qaQueue() : await workQueue(agent.data);
   if (tasks.length) await addLiveEvents(agent.data, [{ step: 'started', text: null }]);
   return NextResponse.json({ run: tasks.length > 0, tasks }, { headers: { 'Cache-Control': 'no-store' } });
 }
@@ -59,6 +64,7 @@ export async function POST(req: Request) {
     .safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues.slice(0, 5) }, { status: 400 });
   const { agent, updates } = parsed.data;
+  if (!(await allowed(agent))) return NextResponse.json({ error: 'Unknown agent' }, { status: 400 });
   const errors: string[] = [];
   for (const u of updates) {
     const err = await applyTaskUpdate(agent, u);

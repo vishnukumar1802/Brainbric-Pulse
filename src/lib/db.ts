@@ -336,6 +336,33 @@ CREATE TABLE IF NOT EXISTS lead_log (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS lead_log_request_idx ON lead_log(request_id, created_at);
+
+-- HR: Lakshmi spots skills the team lacks and proposes specialist agents; people approve each hire.
+INSERT INTO agents (slug, name, nickname, description, schedule, sort) VALUES
+  ('hr-recruiter', 'HR & Recruiting', 'Lakshmi', 'Spots skills a project needs that the team lacks and proposes specialist agents to hire. Every hire waits for your approval.', '10 AM, 2 PM and 5 PM', 95)
+ON CONFLICT (slug) DO NOTHING;
+
+-- Hiring proposals. Status: proposed -> approved (a person) -> active (its routine checked in) | rejected | retired.
+CREATE TABLE IF NOT EXISTS hires (
+  id SERIAL PRIMARY KEY,
+  slug TEXT NOT NULL UNIQUE,
+  title TEXT NOT NULL,
+  name TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  skills TEXT,
+  brief TEXT NOT NULL,
+  tools TEXT,
+  schedule TEXT,
+  est_cost TEXT,
+  needs_from_owner TEXT,
+  request_id INT,
+  status TEXT NOT NULL DEFAULT 'proposed',
+  decided_by TEXT,
+  decided_at TIMESTAMPTZ,
+  note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `;
 
 const globalForDb = globalThis as unknown as { pulseDb?: Promise<Driver> };
