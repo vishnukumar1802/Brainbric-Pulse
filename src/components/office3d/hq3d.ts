@@ -161,22 +161,76 @@ function screenTexture(kind: 'code' | 'dash' | 'pipeline', accent: string) {
   });
 }
 
-function logoTexture(accent: string) {
-  return canvasTex(1024, 256, (g) => {
+/** The reception wall: the real Brainbric mark (drawn in once the image loads) and the name. */
+function logoTexture() {
+  const word = (g: CanvasRenderingContext2D) => {
     g.fillStyle = '#1b1a1d';
     g.fillRect(0, 0, 1024, 256);
-    const grad = g.createLinearGradient(0, 0, 200, 0);
-    grad.addColorStop(0, '#FDE11B');
-    grad.addColorStop(1, accent);
-    g.fillStyle = grad;
-    g.beginPath();
-    g.arc(170, 128, 64, 0, Math.PI * 2);
-    g.fill();
     g.fillStyle = '#ffffff';
     g.font = '700 120px system-ui, sans-serif';
     g.textBaseline = 'middle';
     g.fillText('Brainbric', 270, 130);
-  });
+  };
+  const t = canvasTex(1024, 256, word);
+  const img = new Image();
+  img.onload = () => {
+    const g = (t.image as HTMLCanvasElement).getContext('2d')!;
+    word(g);
+    const h = 200;
+    const w = (img.width / img.height) * h;
+    g.drawImage(img, 230 - w, 28, w, h);
+    t.needsUpdate = true;
+  };
+  img.src = '/brainbric-logo.png';
+  return t;
+}
+
+export type ScreenStats = { ready: number; talks: number; sent: number; goal: number; floor: FloorKey };
+
+/** The boardroom wall and sales screens show the real numbers. */
+function statsScreen(accent: string) {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 256;
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  let last = '';
+  const draw = (s: ScreenStats) => {
+    const key = `${s.ready}|${s.talks}|${s.sent}|${s.goal}|${s.floor}`;
+    if (key === last) return;
+    last = key;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#0f1318';
+    g.fillRect(0, 0, 512, 256);
+    g.fillStyle = 'rgba(255,255,255,0.55)';
+    g.font = '600 20px system-ui, sans-serif';
+    g.textBaseline = 'alphabetic';
+    g.fillText(s.floor === 'g' ? 'TODAY · SOFTWARE' : 'TODAY · COLLEGES', 24, 38);
+    const tiles: [string, string][] = [
+      ['Drafts ready', String(s.ready)],
+      ['In talks', String(s.talks)],
+      ['Sent today', `${s.sent}/${s.goal}`],
+    ];
+    tiles.forEach(([label, value], i) => {
+      const x = 24 + i * 160;
+      g.fillStyle = 'rgba(255,255,255,0.06)';
+      g.fillRect(x, 58, 146, 120);
+      g.fillStyle = i === 2 ? '#8be0a4' : accent;
+      g.font = '700 56px system-ui, sans-serif';
+      g.fillText(value, x + 14, 128);
+      g.fillStyle = 'rgba(255,255,255,0.7)';
+      g.font = '500 18px system-ui, sans-serif';
+      g.fillText(label, x + 14, 162);
+    });
+    const pct = s.goal > 0 ? Math.min(1, s.sent / s.goal) : 0;
+    g.fillStyle = 'rgba(255,255,255,0.1)';
+    g.fillRect(24, 204, 464, 14);
+    g.fillStyle = '#8be0a4';
+    g.fillRect(24, 204, 464 * pct, 14);
+    t.needsUpdate = true;
+  };
+  return { tex: t, draw };
 }
 
 // ---------- Building blocks (floor units for x/z, metres for y and h) ----------
@@ -280,12 +334,23 @@ function place(g: G, name: string, x: number, z: number, rot = 0, y = 0, scale =
 
 // ---------- The floor ----------
 
-export type HQHandles = { group: THREE.Group; tray: THREE.Mesh; liftLight: THREE.Mesh; screens: THREE.Mesh[] };
+export type HQHandles = {
+  group: THREE.Group;
+  tray: THREE.Mesh;
+  liftLight: THREE.Mesh;
+  screens: THREE.Mesh[];
+  /** Window glass: brighter by day, dark blue at night. */
+  windows: THREE.MeshStandardMaterial;
+  /** Draw the live numbers on the boardroom and sales screens. */
+  stats: (s: ScreenStats) => void;
+};
 
 export function buildHQ(floor: FloorKey): HQHandles {
   const accent = ACCENT[floor];
   const g = new THREE.Group();
   const screens: THREE.Mesh[] = [];
+  const live = statsScreen(accent);
+  const liveMat = new THREE.MeshStandardMaterial({ color: '#111', emissive: '#ffffff', emissiveMap: live.tex, emissiveIntensity: 0.95, roughness: 0.3, map: live.tex });
 
   // Slab and floors: oak throughout, concrete corridors, carpet in the lounge and focus pods, marble café, dark server room.
   box(g, -0.3, -0.3, HQ_W + 0.6, HQ_D + 0.6, -0.35, 0.35, std('#232326', 0.8), false);
@@ -304,7 +369,7 @@ export function buildHQ(floor: FloorKey): HQHandles {
   box(g, -0.25, -0.25, 0.25, HQ_D + 0.25, 0, 3.0, wall);
   box(g, 0, -0.01, HQ_W, 0.02, 2.82, 0.06, glow(accent, 1.2), false);
   box(g, -0.01, 0, 0.02, HQ_D, 2.82, 0.06, glow(accent, 1.2), false);
-  const win = std('#cfe8f6', 0.05, 0, { emissive: '#bfe3f7', emissiveIntensity: 0.35 });
+  const win = new THREE.MeshStandardMaterial({ color: '#cfe8f6', roughness: 0.05, emissive: '#bfe3f7', emissiveIntensity: 0.35 });
   for (const [a, b] of [[6.2, 7.0], [10.4, 12.0], [16.4, 19.6]]) box(g, a, -0.01, b - a, 0.02, 0.6, 2.0, win, false);
   for (const z of [11.4, 13.6]) box(g, -0.01, z, 0.02, 1.8, 0.6, 2.0, win, false);
   // Living plant wall in the lounge, oak slats behind the cabin desk.
@@ -321,9 +386,12 @@ export function buildHQ(floor: FloorKey): HQHandles {
     officeChair(g, x + 0.3, 1.0, 'down', '#e9e6e1');
     officeChair(g, x + 0.3, 3.5, 'up', '#e9e6e1');
   }
-  const wallScreen = box(g, 0.8, 0.0, 2.8, 0.03, 1.0, 1.4, new THREE.MeshStandardMaterial({ map: screenTexture('dash', accent), emissive: '#ffffff', emissiveMap: screenTexture('dash', accent), emissiveIntensity: 0.8 }), false);
+  const wallScreen = box(g, 0.8, 0.0, 2.8, 0.03, 1.0, 1.4, liveMat, false);
   screens.push(wallScreen);
   place(g, 'modern_ceiling_lamp_01', 2.1, 2.25, 0, 2.2);
+  // Laptops open on the boardroom table.
+  for (const [x, z, r] of [[1.2, 1.65, 0], [2.6, 1.65, 0], [1.6, 2.6, Math.PI], [3.0, 2.6, Math.PI]] as [number, number, number][])
+    place(g, 'classic_laptop', x, z, r, 0.8, 0.9);
 
   // ----- Atrium: lift, pipeline board, water cooler, tree -----
   box(g, 6.6, -0.02, 1.9, 0.04, 0, 2.3, std('#7d858e', 0.25, 0.8), false);
@@ -405,6 +473,7 @@ export function buildHQ(floor: FloorKey): HQHandles {
     if (!isFuture) {
       const n = isDev ? 3 : 2;
       const tex = screenTexture(isDev ? 'code' : 'dash', accent);
+      // Sales screens: the middle one of each pair shows today's numbers.
       const sm = new THREE.MeshStandardMaterial({ color: '#111', emissive: '#ffffff', emissiveMap: tex, emissiveIntensity: 0.9, roughness: 0.3 });
       for (let k = 0; k < n; k++) {
         const w = 0.55;
@@ -415,7 +484,7 @@ export function buildHQ(floor: FloorKey): HQHandles {
         frame.rotation.y = -angle;
         frame.castShadow = true;
         g.add(frame);
-        const scr = new THREE.Mesh(new THREE.PlaneGeometry((w - 0.08) * U, 0.27), sm);
+        const scr = new THREE.Mesh(new THREE.PlaneGeometry((w - 0.08) * U, 0.27), !isDev && k === 0 ? liveMat : sm);
         scr.position.set((sx + (w - 0.04) / 2) * U, 0.98, (dz + 0.25) * U + 0.017);
         scr.rotation.y = -angle;
         g.add(scr);
@@ -472,7 +541,7 @@ export function buildHQ(floor: FloorKey): HQHandles {
   place(g, 'chess_set', 7.2, 14.3, 0, 0.42, 0.8);
 
   // ----- Reception (curved desk, logo wall) -----
-  const logo = logoTexture(accent);
+  const logo = logoTexture();
   const logoMat = new THREE.MeshStandardMaterial({ map: logo, emissive: '#ffffff', emissiveMap: logo, emissiveIntensity: 0.55, roughness: 0.4 });
   box(g, 10.4, 14.9, 4.4, 0.12, 0, 2.2, std('#1b1a1d', 0.5));
   const logoPlane = new THREE.Mesh(new THREE.PlaneGeometry(4.0 * U, 1.0), logoMat);
@@ -498,5 +567,5 @@ export function buildHQ(floor: FloorKey): HQHandles {
   // ----- Future teams zone sign -----
   box(g, 15.4, 15.0, 8.4, 0.05, 0.02, 0.02, glow(accent, 1.4), false);
 
-  return { group: g, tray, liftLight, screens };
+  return { group: g, tray, liftLight, screens, windows: win, stats: live.draw };
 }

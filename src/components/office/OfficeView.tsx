@@ -346,6 +346,8 @@ export function OfficeView({ data }: { data: OfficeData }) {
               readyHref={floorInfo.readyHref}
               talks={floorInfo.talks}
               talksHref={floorInfo.talksHref}
+              sent={data.goal.done}
+              goal={data.goal.target}
               otherFloor={other ? FLOOR_LABEL[other.key] : null}
               selected={selected}
               full={isFull}
