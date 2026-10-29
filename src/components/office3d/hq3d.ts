@@ -5,10 +5,10 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import type { FloorKey } from '@/lib/office';
+import { fetchBuffer, hqUrl } from './assets';
 import { HQ_CABIN, HQ_D, HQ_DESKS, HQ_PANTRY, HQ_W, HQ_ZONES } from '../office/hqLayout';
 
 export const U = 0.8;
-const MODELS = '/office3d/hq';
 
 const ACCENT: Record<FloorKey, string> = { g: '#ff6a2b', f: '#8f86ff' };
 
@@ -305,7 +305,7 @@ const modelCache = new Map<string, Promise<THREE.Group>>();
 function model(name: string) {
   let p = modelCache.get(name);
   if (!p) {
-    p = loader.loadAsync(`${MODELS}/${name}.glb`).then((gltf) => {
+    p = fetchBuffer(hqUrl(name)).then((data) => loader.parseAsync(data, '')).then((gltf) => {
       gltf.scene.traverse((o) => {
         const m = o as THREE.Mesh;
         if (m.isMesh) {

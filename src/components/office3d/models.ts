@@ -1,4 +1,4 @@
-// Which 3D person (from Microsoft's open Rocketbox library, files in public/office3d/people) plays whom.
+// Which 3D person (from Microsoft's open Rocketbox library, as GLB files in public/office3d/folk) plays whom.
 // Agents get the person closest to their portrait; team members and visitors get one picked steadily from a pool.
 import type { OfficePerson } from '@/lib/office';
 
@@ -21,6 +21,8 @@ const TEAM: Model[] = [
 ];
 const ADMIN: Model = { file: 'Male_Adult_14', sex: 'm' };
 export const GUEST: Model = { file: 'Male_Adult_02', sex: 'm' };
+/** Everyone who can appear, so their files can be fetched ahead. */
+export const PEOPLE_FILES = [...TEAM, ADMIN].map((m) => m.file);
 
 function hash(s: string): number {
   let h = 7;

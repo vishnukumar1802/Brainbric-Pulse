@@ -4,7 +4,8 @@
 // this draws them as realistic people (Rocketbox, MIT) with motion-captured walking, sitting, talking and listening.
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
@@ -15,8 +16,8 @@ import { CLIPS, GUEST, modelFor, type Model } from './models';
 import { HQ_D, HQ_GUEST, HQ_ROOMS, HQ_W } from '../office/hqLayout';
 import { buildHQ, U, type HQHandles } from './hq3d';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { clipUrl, fetchBlob, fetchBuffer, fetchJson, personUrl, preloadOffice, textureUrl } from './assets';
 
-const BASE = '/office3d';
 type Sims = Record<FloorKey, OfficeSim>;
 
 export type StageProps = {
@@ -117,6 +118,7 @@ export function OfficeStage3D(props: StageProps) {
     const host = hostRef.current;
     if (!host) return;
     let disposed = false;
+    preloadOffice();
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(1.75, window.devicePixelRatio || 1));
@@ -243,51 +245,62 @@ export function OfficeStage3D(props: StageProps) {
       if (p.otherFloor) roomLabel(`Lift · ${p.otherFloor}`, [7.55, 0], 2.65, lab, () => propsRef.current.onLift());
     };
 
-    // ----- People -----
-    const manager = new THREE.LoadingManager();
-    manager.addHandler(/\.tga$/i, new THREE.TextureLoader(manager));
-    manager.setURLModifier((url) => {
-      const file = url.split(/[\\/]/).pop() ?? url;
-      if (/_opacity_color\.tga$/i.test(file)) return `${BASE}/people/${file.replace(/\.tga$/i, '.png')}`;
-      if (/_color\.tga$/i.test(file)) return `${BASE}/people/${file.replace(/\.tga$/i, '.jpg')}`;
-      if (/\.tga$/i.test(file)) return `${BASE}/people/flat_normal.png`;
-      return url;
-    });
-    const loader = new FBXLoader(manager);
+    // ----- People (GLB with meshopt; textures are separate files named in each material's extras) -----
+    const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
+    const textures = new Map<string, Promise<THREE.Texture>>();
+    const texture = (file: string) => {
+      let p = textures.get(file);
+      if (!p) {
+        // Decoded off the main thread; the image is flipped here because image bitmaps ignore the GPU flip.
+        p = fetchBlob(textureUrl(file))
+          .then((b) => createImageBitmap(b, { imageOrientation: 'flipY' }))
+          .then((img) => {
+            const t = new THREE.Texture(img);
+            t.flipY = false;
+            t.colorSpace = THREE.SRGBColorSpace;
+            t.anisotropy = 4;
+            t.needsUpdate = true;
+            return t;
+          });
+        textures.set(file, p);
+      }
+      return p;
+    };
     const modelCache = new Map<string, Promise<THREE.Group>>();
     const loadModel = (m: Model) => {
       let p = modelCache.get(m.file);
       if (!p) {
-        p = loader.loadAsync(`${BASE}/people/${m.file}.fbx`).then((obj) => {
-          const sz = new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
-          obj.scale.setScalar((m.sex === 'f' ? 1.66 : 1.74) / (sz.y || 170));
-          obj.traverse((o) => {
-            const mesh = o as THREE.Mesh;
-            if (!mesh.isMesh) return;
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-            mesh.frustumCulled = false;
-            for (const mt of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
-              const pm = mt as THREE.MeshPhongMaterial;
-              if (pm.map) {
-                pm.map.colorSpace = THREE.SRGBColorSpace;
-                pm.color.set('#ffffff');
-              }
-              pm.emissive?.set('#000000');
-              pm.specularMap = null;
-              pm.normalMap = null;
-              pm.bumpMap = null;
-              if (pm.alphaMap || pm.transparent) {
-                pm.transparent = false;
-                pm.alphaTest = 0.5;
-              }
-              pm.shininess = 8;
-              pm.specular = new THREE.Color('#222222');
-              warmSkin(pm);
-            }
+        p = fetchBuffer(personUrl(m.file))
+          .then((data) => loader.parseAsync(data, ''))
+          .then(async (gltf) => {
+            const obj = gltf.scene;
+            const sz = new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
+            obj.scale.setScalar((m.sex === 'f' ? 1.66 : 1.74) / (sz.y || 1.7));
+            const jobs: Promise<void>[] = [];
+            obj.traverse((o) => {
+              const mesh = o as THREE.Mesh;
+              if (!mesh.isMesh) return;
+              mesh.castShadow = true;
+              mesh.receiveShadow = true;
+              mesh.frustumCulled = false;
+              const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+              const next = mats.map((mt) => {
+                const extras = mt.userData as { map?: string; alpha?: string };
+                const pm = new THREE.MeshPhongMaterial({ name: mt.name, shininess: 8, specular: new THREE.Color('#222222') });
+                if (extras.alpha) pm.alphaTest = 0.5;
+                if (extras.map) jobs.push(texture(extras.map).then((t) => {
+                  pm.map = t;
+                  pm.needsUpdate = true;
+                }));
+                warmSkin(pm);
+                return pm;
+              });
+              mesh.material = Array.isArray(mesh.material) ? next : next[0];
+            });
+            await Promise.all(jobs);
+            return obj;
           });
-          return obj;
-        });
         modelCache.set(m.file, p);
       }
       return p;
@@ -296,7 +309,7 @@ export function OfficeStage3D(props: StageProps) {
     const clips: Record<string, THREE.AnimationClip> = {};
     const clipsReady = Promise.all(
       CLIPS.map(async (n) => {
-        const json = await (await fetch(`${BASE}/anim/${n}.json`)).json();
+        const json = await fetchJson<THREE.AnimationClipJSON>(clipUrl(n));
         const clip = THREE.AnimationClip.parse(json);
         // The converted files carry no id; without one every clip shares a slot in the animation mixer.
         clip.uuid = THREE.MathUtils.generateUUID();

@@ -11,6 +11,7 @@ import dynamic from 'next/dynamic';
 import { drawOffice, LH, LW, personColor, type Hit } from './scene';
 import { HQ } from './hqLayout';
 import { OfficeSim, type LiveStepEvent } from './sim';
+import { preloadOffice } from '../office3d/assets';
 
 const FLOOR_LABEL: Record<FloorKey, string> = { g: 'Ground floor', f: 'First floor' };
 const fmt = (n: number) => n.toLocaleString('en-IN');
@@ -90,7 +91,11 @@ export function OfficeView({ data }: { data: OfficeData }) {
         return false;
       }
     })();
-    if (gl && (saved === '3d' || (saved == null && window.innerWidth >= 900))) setMode('3d');
+    if (gl && (saved === '3d' || (saved == null && window.innerWidth >= 900))) {
+      // Start the 3D files downloading now, alongside the 3D code, instead of after it.
+      preloadOffice();
+      setMode('3d');
+    }
   }, []);
   const switchMode = (m: '2d' | '3d') => {
     setMode(m);
