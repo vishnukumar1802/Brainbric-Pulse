@@ -5,7 +5,7 @@ import { addLiveEvents } from './live';
 import { PORTAL_URL, postNews } from './news';
 
 /**
- * Project documents, written by the Business Analyst (Ananya) as branded Word files in OneDrive. They are asked for
+ * Project documents, written by the Business Analyst (Ananya) as branded Word (and PDF) files kept by the portal. They are asked for
  * by people (portal or Teams) or queued automatically: SRS and project plan when a plan is ready, a progress report
  * every week while building, a test report when testing is done and a final report when the project goes live.
  */

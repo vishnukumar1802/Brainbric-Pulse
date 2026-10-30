@@ -15,7 +15,7 @@ export function Documents({ requestId, docs, pending }: { requestId: number; doc
           <AgentFace slug="business-analyst" name="Ananya" size={22} /> Documents
         </span>
       }
-      note="Branded Word files in OneDrive, written by Ananya (Business Analyst)."
+      note="Branded Word and PDF documents, written by Ananya (Business Analyst)."
     >
       {docs.length > 0 ? (
         <ul className="divide-y divide-paper-rule">

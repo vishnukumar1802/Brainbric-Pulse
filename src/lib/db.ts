@@ -430,6 +430,15 @@ CREATE TABLE IF NOT EXISTS project_docs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS project_docs_request_idx ON project_docs(request_id, created_at);
+-- The document files themselves (Word, PDF, Excel), uploaded by the Business Analyst.
+CREATE TABLE IF NOT EXISTS doc_files (
+  id SERIAL PRIMARY KEY,
+  filename TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  size INT NOT NULL,
+  data BYTEA NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 -- The owner's Teams (Microsoft 365) user id: the only sender the channel takes work and approvals from, to begin with.
 INSERT INTO settings (key, value) VALUES ('chat_allowed_ids', 'ef426f8a-d763-49b6-bd3a-5b46d77330e9') ON CONFLICT (key) DO NOTHING;
