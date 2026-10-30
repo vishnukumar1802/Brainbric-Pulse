@@ -216,6 +216,29 @@ export async function setAgentPausedAction(form: FormData): Promise<void> {
   revalidatePath('/', 'layout');
 }
 
+/** Everything the agents generated. Kept: users, agents, projects and the owner's settings (focus, price guide, rules, sites). */
+const GENERATED_TABLES = [
+  'leads', 'activities', 'proposals', 'documents', 'agent_runs', 'mail_alerts', 'agent_events',
+  'tickets', 'site_checks', 'lead_requests', 'dev_tasks', 'lead_log', 'hires',
+  'chat_inbox', 'chat_outbox', 'agent_notes', 'doc_requests', 'project_docs', 'doc_files',
+];
+
+/**
+ * Fresh start (admin only, typed confirmation): pauses every agent, then deletes all generated work and restarts the
+ * numbering. The agents begin again when the owner presses "Start all" on the Agents page.
+ */
+export async function freshStartAction(_: FormState, form: FormData): Promise<FormState> {
+  const admin = await requireAdmin();
+  if (String(form.get('confirm') ?? '').trim().toUpperCase() !== 'FRESH START') return { error: 'Type FRESH START to confirm.' };
+  await q('UPDATE agents SET paused = TRUE, paused_at = now(), paused_by = $1 WHERE enabled', [admin.name]);
+  await q(`TRUNCATE ${GENERATED_TABLES.join(', ')} RESTART IDENTITY`);
+  await q("DELETE FROM settings WHERE key IN ('support_cursor', 'support_pending')");
+  // The Teams Desk starts reading from now, so old channel messages are not handled again.
+  await setSetting('chat_cursor', new Date().toISOString());
+  revalidatePath('/', 'layout');
+  return { ok: 'Fresh start done. Every agent is paused; press "Start all" on the Agents page to begin.' };
+}
+
 /** Give an agent a name (admin only). An empty name removes it. */
 export async function renameAgentAction(_prev: FormState, form: FormData): Promise<FormState> {
   await requireAdmin();

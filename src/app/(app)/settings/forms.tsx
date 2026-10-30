@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
-import { changeOwnPasswordAction, saveSettingsAction, type FormState } from '@/app/actions';
+import { changeOwnPasswordAction, freshStartAction, saveSettingsAction, type FormState } from '@/app/actions';
 
 function Submit({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -72,6 +72,35 @@ export function WorkspaceForm({ myWhatsapp, teamBcc }: { myWhatsapp: string; tea
       </div>
       <Message state={state} />
       <Submit label="Save settings" />
+    </form>
+  );
+}
+
+function DangerSubmit() {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" className="btn self-start bg-[#B42318] text-white hover:bg-[#912018]" disabled={pending}>
+      {pending ? 'Clearing…' : 'Fresh start'}
+    </button>
+  );
+}
+
+export function FreshStartForm() {
+  const [state, action] = useFormState(freshStartAction, undefined);
+  const ref = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (state?.ok) ref.current?.reset();
+  }, [state]);
+  return (
+    <form ref={ref} action={action} className="flex flex-col gap-3">
+      <div>
+        <label htmlFor="confirm" className="label">
+          Type FRESH START to confirm
+        </label>
+        <input id="confirm" name="confirm" required autoComplete="off" className="input" placeholder="FRESH START" />
+      </div>
+      <Message state={state} />
+      <DangerSubmit />
     </form>
   );
 }

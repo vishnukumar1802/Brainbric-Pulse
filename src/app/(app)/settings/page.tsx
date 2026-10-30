@@ -3,7 +3,7 @@ import { Card, PageHeader } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
 import { getSetting } from '@/lib/db';
 import { getPriceGuide } from '@/lib/proposals';
-import { OwnPasswordForm, WorkspaceForm } from './forms';
+import { FreshStartForm, OwnPasswordForm, WorkspaceForm } from './forms';
 import { PriceGuideForm } from './PriceGuideForm';
 
 export const metadata = { title: 'Settings' };
@@ -59,6 +59,23 @@ export default async function SettingsPage() {
                 </dd>
               </div>
             </dl>
+          </Card>
+        )}
+        {user.role === 'admin' && (
+          <Card title="Fresh start" note="Cannot be undone." className="xl:col-span-2">
+            <div className="grid gap-4 text-sm sm:grid-cols-2">
+              <div className="text-ink-700">
+                <p>
+                  Pauses every agent and permanently deletes everything they generated: leads, proposals, activity, mail alerts, tickets,
+                  site checks, Team Lead requests and tasks, hires, Teams chat history, notes and documents. Numbering starts again at 1.
+                </p>
+                <p className="mt-2">
+                  Kept: users, the agents, the projects and your settings. Then press <strong>Start all</strong> on the Agents page and the team
+                  begins from their next scheduled run.
+                </p>
+              </div>
+              <FreshStartForm />
+            </div>
           </Card>
         )}
       </div>
