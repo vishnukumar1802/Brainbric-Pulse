@@ -265,6 +265,8 @@ export async function applyLeadUpdate(u: LeadUpdate): Promise<string | null> {
       live: `#${u.request_id} "${r.title}" is live: ${u.live_url ?? link}`,
     };
     if (news[u.status]) await postNews(LEAD_AGENT, news[u.status]!);
+    const { queueMilestoneDocs } = await import('./docs');
+    await queueMilestoneDocs(u.request_id, u.status);
   }
   return null;
 }

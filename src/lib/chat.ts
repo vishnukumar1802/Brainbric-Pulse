@@ -5,6 +5,7 @@ import { decideHire } from './hr';
 import { createRequest, decide, listProjects, REQUEST_STATUS, type RequestStatus } from './lead';
 import { PORTAL_URL } from './news';
 import { ticketCounts } from './support';
+import { docName, DOC_KINDS, queueDoc, type DocKind } from './docs';
 
 /**
  * The AI team channel on Microsoft Teams. The Teams Desk agent reads the owner's messages there, works out who is
@@ -14,7 +15,7 @@ import { ticketCounts } from './support';
 export const DESK_AGENT = 'teams-desk';
 export const BOT_MARK = '🤖';
 
-export const CHAT_INTENTS = ['request', 'approve_plan', 'change_plan', 'answer', 'approve_live', 'cancel', 'approve_hire', 'reject_hire', 'note', 'status', 'help'] as const;
+export const CHAT_INTENTS = ['request', 'approve_plan', 'change_plan', 'answer', 'approve_live', 'cancel', 'approve_hire', 'reject_hire', 'note', 'status', 'document', 'help'] as const;
 export type ChatIntent = (typeof CHAT_INTENTS)[number];
 
 export type ChatIn = {
@@ -31,6 +32,8 @@ export type ChatIn = {
   title?: string | null;
   brief?: string | null;
   note?: string | null;
+  /** For "document": srs | plan | progress | test | final. */
+  doc_kind?: DocKind | null;
 };
 
 type Member = { slug: string; name: string; nickname: string | null; description: string; schedule: string; paused: boolean };
@@ -96,6 +99,7 @@ const HELP = [
   '- approve plan 12  /  approve live 12  /  change plan 12: use green buttons',
   '- approve hire 3  /  decline hire 3',
   '- @Kavya status   @Aditya status   @Lakshmi status',
+  '- @Ananya SRS for 12  /  project plan for 12  /  progress report for 12  /  test report  /  final report',
   '- @Meena focus on engineering colleges in Coimbatore this week  (a note for her next run)',
 ].join('\n');
 
@@ -163,6 +167,21 @@ export async function handleChat(m: ChatIn): Promise<{ reply: string } | null> {
       const err = await decideHire(m.hire_id, m.intent === 'approve_hire' ? 'approve' : 'reject', `${by} (Teams)`, m.note ?? '');
       if (err) return reply(err);
       return reply(m.intent === 'approve_hire' ? 'Hired. Ask Claude to set up their schedule and they start working.' : 'Proposal declined.');
+    }
+    case 'document': {
+      if (!m.request_id) return reply('Which request? For example: progress report for 12.');
+      const kind = m.doc_kind && (DOC_KINDS as readonly string[]).includes(m.doc_kind) ? m.doc_kind : null;
+      if (!kind) return reply('Which document? SRS, project plan, progress report, test report or final report.');
+      const exists = await one('SELECT 1 FROM lead_requests WHERE id = $1', [m.request_id]);
+      if (!exists) return reply(`I can't find request #${m.request_id}.`);
+      const r = await queueDoc(m.request_id, kind, `${by} (Teams)`, m.note ?? null);
+      const ba = members.find((x) => x.slug === 'business-analyst');
+      const text = r.queued
+        ? `On it: the ${docName(kind)} for #${m.request_id}. I'll post the link here when it's ready, usually within the hour.`
+        : `The ${docName(kind)} for #${m.request_id} is already on my list. I'll post the link here when it's ready.`;
+      const full = sign(ba, 'business-analyst', text);
+      await q('UPDATE chat_inbox SET reply = $2 WHERE id = $1', [fresh[0].id, full]);
+      return { reply: full };
     }
     case 'note': {
       const text = (m.note || m.text).trim();

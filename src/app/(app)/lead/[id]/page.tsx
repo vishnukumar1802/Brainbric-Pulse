@@ -6,6 +6,8 @@ import { requirePermission } from '@/lib/auth';
 import { fmtAgo, fmtDate, fmtDateTime } from '@/lib/format';
 import { getRequest, REQUEST_STATUS, TASK_STATUS_LABEL, type RequestStatus } from '@/lib/lead';
 import { Decision } from '../Decision';
+import { Documents } from '../Documents';
+import { docsFor } from '@/lib/docs';
 import { StatusPill } from '../StatusPill';
 
 export const metadata = { title: 'Request' };
@@ -31,6 +33,7 @@ export default async function RequestPage({ params }: { params: { id: string } }
   const data = await getRequest(Number(params.id));
   if (!data) notFound();
   const { request: r, tasks, log, project } = data;
+  const docs = await docsFor(r.id);
   const stage = r.status === 'cancelled' ? -1 : STAGES.findIndex((s) => s.statuses.includes(r.status));
   const admin = user.role === 'admin';
   const builds = tasks.filter((t) => t.role === 'developer');
@@ -183,6 +186,8 @@ export default async function RequestPage({ params }: { params: { id: string } }
               )}
             </div>
           </Card>
+
+          <Documents requestId={r.id} docs={docs.docs} pending={docs.pending} />
 
           <Card flush title="Timeline">
             <ol className="divide-y divide-paper-rule">

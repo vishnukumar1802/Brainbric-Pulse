@@ -401,6 +401,36 @@ CREATE TABLE IF NOT EXISTS agent_notes (
   picked_at TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS agent_notes_agent_idx ON agent_notes(agent, picked_at);
+-- Business Analyst: Ananya writes the project documents (SRS, project plan, progress, test and final reports).
+INSERT INTO agents (slug, name, nickname, description, schedule, sort) VALUES
+  ('business-analyst', 'Business Analyst', 'Ananya', 'Writes the project documents: SRS, project plan, progress, test and final reports, as branded Word files in OneDrive.', 'Every hour, 9 AM to 7 PM', 93)
+ON CONFLICT (slug) DO NOTHING;
+
+-- Documents asked for (by people, by the Teams channel or automatically at project milestones) and the ones written.
+CREATE TABLE IF NOT EXISTS doc_requests (
+  id SERIAL PRIMARY KEY,
+  request_id INT NOT NULL,
+  kind TEXT NOT NULL,
+  note TEXT,
+  requested_by TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  done_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS doc_requests_status_idx ON doc_requests(status, created_at);
+CREATE TABLE IF NOT EXISTS project_docs (
+  id SERIAL PRIMARY KEY,
+  request_id INT NOT NULL,
+  kind TEXT NOT NULL,
+  title TEXT NOT NULL,
+  version TEXT NOT NULL DEFAULT '1.0',
+  url TEXT NOT NULL,
+  pdf_url TEXT,
+  summary TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS project_docs_request_idx ON project_docs(request_id, created_at);
+
 -- The owner's Teams (Microsoft 365) user id: the only sender the channel takes work and approvals from, to begin with.
 INSERT INTO settings (key, value) VALUES ('chat_allowed_ids', 'ef426f8a-d763-49b6-bd3a-5b46d77330e9') ON CONFLICT (key) DO NOTHING;
 `;

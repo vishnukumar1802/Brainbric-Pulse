@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { agentAuthorized } from '@/lib/agentAuth';
 import { getSetting, one, setSetting } from '@/lib/db';
 import { CHAT_INTENTS, DESK_AGENT, handleChat, markSent, outbox, roster } from '@/lib/chat';
+import { DOC_KINDS } from '@/lib/docs';
 import { istHour } from '@/lib/mail';
 
 export const dynamic = 'force-dynamic';
@@ -49,6 +50,7 @@ const Message = z.object({
   title: z.string().max(200).nullish(),
   brief: z.string().max(6000).nullish(),
   note: z.string().max(4000).nullish(),
+  doc_kind: z.enum(DOC_KINDS).nullish(),
 });
 
 /**

@@ -97,7 +97,7 @@ export const HQ = makeLayout({
   edges: E,
   start: 'aLift',
   // The delivery team: the lead and the developer in the developer zone, QA beside support and DevOps (front right).
-  reserved: { 'team-lead': 0, developer: 1, 'support-desk': 10, 'devops-watch': 11, 'qa-tester': 12 },
+  reserved: { 'team-lead': 0, developer: 1, 'business-analyst': 2, 'support-desk': 10, 'devops-watch': 11, 'qa-tester': 12 },
   spots: {
     board: ['bo', 'bo2'],
     mail: 'mm',

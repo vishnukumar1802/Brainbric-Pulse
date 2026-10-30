@@ -15,6 +15,7 @@ import { STATUSES } from '@/lib/status';
 import { setTicketStatus, TICKET_STATUSES, type TicketStatus } from '@/lib/support';
 import { createRequest, decide, saveProject } from '@/lib/lead';
 import { decideHire } from '@/lib/hr';
+import { DOC_KINDS, queueDoc, type DocKind } from '@/lib/docs';
 
 export type FormState = { error?: string; ok?: string; credentials?: { username: string; password: string } } | undefined;
 
@@ -613,4 +614,16 @@ export async function decideHireAction(_: FormState, form: FormData): Promise<Fo
     retire: 'Let go. The agent is paused and gets no new work.',
   };
   return { ok: done[action] };
+}
+
+// ---------- Business Analyst ----------
+
+/** Ask Ananya for a project document. */
+export async function askDocAction(form: FormData): Promise<void> {
+  const user = await requirePermission('projects');
+  const id = Number(form.get('request_id'));
+  const kind = String(form.get('kind') ?? '');
+  if (!Number.isInteger(id) || !(DOC_KINDS as readonly string[]).includes(kind)) return;
+  await queueDoc(id, kind as DocKind, user.name);
+  revalidatePath(`/lead/${id}`);
 }
