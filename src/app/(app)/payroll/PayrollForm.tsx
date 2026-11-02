@@ -64,7 +64,7 @@ export function PayrollForm({ rows, usdInr, models }: { rows: Row[]; usdInr: num
       </div>
       <p className="text-xs text-ink-500">
         At 80% of a budget Lakshmi posts a warning in Teams; at 100% the agent is paused until you raise the budget or start it again.
-        Changing a model affects new shifts only.
+        Changing a model affects new runs only.
       </p>
       {state && (
         <p role="status" className={`rounded-md px-3 py-2 text-sm ${state.error ? 'bg-[#FFEDEA] text-[#831C1E]' : 'bg-[#DCFAE5] text-[#0B3D1C]'}`}>

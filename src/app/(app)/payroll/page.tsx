@@ -3,7 +3,7 @@ import { AgentFace } from '@/components/AgentFace';
 import { Card, PageHeader } from '@/components/ui';
 import { requirePermission } from '@/lib/auth';
 import { fmtAgo } from '@/lib/format';
-import { dailyCost, inr, MODEL_LABEL, MODELS, payroll, payrollConfig, tokensText, type Payslip } from '@/lib/payroll';
+import { credits, dailyCost, inr, MODEL_LABEL, MODELS, payroll, payrollConfig, perRun, tokensText, type Payslip } from '@/lib/payroll';
 import { PayrollForm } from './PayrollForm';
 
 export const metadata = { title: 'Payroll' };
@@ -49,13 +49,14 @@ export default async function PayrollPage({ searchParams }: { searchParams: { mo
   const current = new Date().toISOString().slice(0, 7);
   const working = p.slips.filter((s) => s.shifts > 0);
   const top = working[0];
+  const runs = working.reduce((n, s) => n + s.shifts, 0);
   const maxDay = Math.max(...days.map((d) => d.inr), 0.01);
 
   return (
     <>
       <PageHeader
         title="Payroll"
-        subtitle="What each AI agent costs, like salaries. Estimated from every shift the agents work; your Claude plan's price stays fixed."
+        subtitle="What each AI agent costs, like salaries. Estimated from every run the agents work, in rupees, Claude credits and tokens; your Claude plan's price stays fixed."
         actions={
           <div className="flex items-center gap-1 text-sm">
             <Link href={`/payroll?month=${shiftMonth(p.month, -1)}`} className="btn h-8 px-2.5" aria-label="Previous month">
@@ -76,22 +77,23 @@ export default async function PayrollPage({ searchParams }: { searchParams: { mo
       />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="Team salary this month" value={inr(p.totalInr)} note={`About US$${p.totalUsd.toFixed(2)} at list prices`} />
-        <Stat label="Tokens used" value={tokensText(p.totalTokens)} note="Estimated, mostly cached reads" />
-        <Stat label="Shifts worked" value={working.reduce((n, s) => n + s.shifts, 0).toLocaleString('en-IN')} note={`${working.length} of ${p.slips.length} agents worked`} />
+        <Stat label="Team salary this month" value={inr(p.totalInr)} note={`${credits(p.totalUsd)} (1 credit = US$1 of Claude usage)`} />
+        <Stat label="Tokens used" value={tokensText(p.totalTokens)} note={`About ${tokensText(perRun(p.totalTokens, runs))} per run, mostly cached reads`} />
+        <Stat label="Runs worked" value={runs.toLocaleString('en-IN')} note={`${working.length} of ${p.slips.length} agents worked · about ${inr(perRun(p.totalInr, runs))} per run`} />
         <Stat label="Highest paid" value={top ? top.name : '-'} note={top ? `${inr(top.inr)} · ${Math.round(top.share * 100)}% of the total` : 'No shifts yet'} />
       </div>
 
       <Card title="Payslips" note="Most expensive first. Cost per piece of work shows value for money." flush className="mb-6">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[56rem] text-sm">
+          <table className="w-full min-w-[64rem] text-sm">
             <thead>
               <tr className="border-b border-paper-rule text-left text-xs text-ink-500">
                 <th className="px-5 pb-2 font-medium">Agent</th>
                 <th className="pb-2 font-medium">Model</th>
-                <th className="pb-2 text-right font-medium">Shifts</th>
+                <th className="pb-2 text-right font-medium">Runs</th>
                 <th className="pb-2 text-right font-medium">Hours on duty</th>
                 <th className="pb-2 text-right font-medium">Tokens</th>
+                <th className="pb-2 text-right font-medium">Credits</th>
                 <th className="pb-2 text-right font-medium">Salary</th>
                 <th className="pb-2 pl-5 font-medium">Budget</th>
                 <th className="px-5 pb-2 font-medium">Work done</th>
@@ -110,7 +112,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: { mo
                         </div>
                         <div className="truncate text-xs text-ink-500">
                           {s.role}
-                          {s.last ? ` · last shift ${fmtAgo(s.last)}` : ''}
+                          {s.last ? ` · last run ${fmtAgo(s.last)}` : ''}
                         </div>
                       </div>
                     </div>
@@ -118,10 +120,20 @@ export default async function PayrollPage({ searchParams }: { searchParams: { mo
                   <td className="py-2.5 text-ink-700">{MODEL_LABEL[s.model]}</td>
                   <td className="py-2.5 text-right tabular-nums">{s.shifts}</td>
                   <td className="py-2.5 text-right tabular-nums">{s.hours.toFixed(1)}</td>
-                  <td className="py-2.5 text-right tabular-nums">{tokensText(s.tokens)}</td>
+                  <td className="py-2.5 text-right tabular-nums">
+                    <div>{tokensText(s.tokens)}</div>
+                    {s.shifts > 0 && <div className="text-xs text-ink-500">{tokensText(perRun(s.tokens, s.shifts))} per run</div>}
+                  </td>
+                  <td className="py-2.5 text-right tabular-nums">
+                    <div>{credits(s.usd).replace(' credits', '')}</div>
+                    {s.shifts > 0 && <div className="text-xs text-ink-500">{perRun(s.usd, s.shifts).toFixed(3)} per run</div>}
+                  </td>
                   <td className="py-2.5 text-right">
                     <div className="font-semibold tabular-nums text-ink-950">{inr(s.inr)}</div>
-                    <div className="text-xs tabular-nums text-ink-500">{Math.round(s.share * 100)}%</div>
+                    <div className="text-xs tabular-nums text-ink-500">
+                      {s.shifts > 0 ? `${inr(perRun(s.inr, s.shifts))} per run · ` : ''}
+                      {Math.round(s.share * 100)}%
+                    </div>
                   </td>
                   <td className="py-2.5 pl-5">
                     <BudgetBar s={s} />
@@ -159,8 +171,8 @@ export default async function PayrollPage({ searchParams }: { searchParams: { mo
 
         <Card title="How salaries are worked out">
           <ul className="list-disc space-y-1.5 pl-4 text-sm text-ink-700">
-            <li>Every call an agent makes to the portal is clocked. Calls less than 20 minutes apart make one shift.</li>
-            <li>Each shift is turned into agent turns, then tokens (about 34K per turn, mostly read from cache), then rupees at Claude list prices.</li>
+            <li>Every call an agent makes to the portal is clocked. Calls less than 20 minutes apart make one run.</li>
+            <li>Each run is turned into agent turns, then tokens (about 34K per turn, mostly read from cache), then credits at Claude list prices (1 credit = US$1 of usage), then rupees.</li>
             <li>Sonnet costs about 20 times more per token than Haiku, so the model matters more than the hours.</li>
             <li>These are estimates for comparing agents and setting budgets. Agents on your Claude plan do not add to a bill per token.</li>
           </ul>

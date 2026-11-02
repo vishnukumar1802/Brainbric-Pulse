@@ -186,6 +186,9 @@ export async function dailyCost(month?: string): Promise<{ day: string; inr: num
 }
 
 export const inr = (n: number) => `₹${n < 100 ? n.toFixed(2) : Math.round(n).toLocaleString('en-IN')}`;
+/** Claude usage credits are counted in US dollars: 1 credit = US$1 of usage at list prices. */
+export const credits = (usd: number) => `${usd < 10 ? usd.toFixed(2) : Math.round(usd).toLocaleString('en-IN')} credits`;
+export const perRun = (n: number, runs: number) => (runs ? n / runs : 0);
 export const tokensText = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(n));
 
 /** At a new shift: warn in Teams at 80% of the monthly budget, and pause the agent at 100%. */
@@ -217,6 +220,9 @@ export async function payrollSummary(): Promise<string> {
   const label = new Date(p.month + '-01T00:00:00Z').toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   const top = p.slips.filter((s) => s.shifts > 0).slice(0, 8);
   if (!top.length) return `No shifts recorded yet for ${label}.`;
-  const lines = top.map((s) => `• ${s.name}: ${inr(s.inr)} (${s.shifts} shift${s.shifts === 1 ? '' : 's'}, ${tokensText(s.tokens)} tokens${s.budget ? `, budget ${inr(s.budget)}` : ''})`);
-  return `Payroll for ${label} so far (estimated): ${inr(p.totalInr)} in total, ${tokensText(p.totalTokens)} tokens.\n${lines.join('\n')}\nFull payslips: ${PORTAL_URL}/payroll`;
+  const lines = top.map(
+    (s) =>
+      `• ${s.name}: ${inr(s.inr)} · ${credits(s.usd)} · ${tokensText(s.tokens)} tokens (${s.shifts} run${s.shifts === 1 ? '' : 's'}, about ${tokensText(perRun(s.tokens, s.shifts))} tokens and ${inr(perRun(s.inr, s.shifts))} per run)${s.budget ? `, budget ${inr(s.budget)}` : ''}`,
+  );
+  return `Payroll for ${label} so far (estimated): ${inr(p.totalInr)} · ${credits(p.totalUsd)} · ${tokensText(p.totalTokens)} tokens.\n${lines.join('\n')}\nFull payslips: ${PORTAL_URL}/payroll`;
 }
