@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { agentAuthorized } from '@/lib/agentAuth';
+import { clockIn } from '@/lib/payroll';
 import { q } from '@/lib/db';
 import { isWorker, markHireActive } from '@/lib/hr';
 import { agentPaused, applyTaskUpdate, DEV_AGENT, QA_AGENT, qaQueue, TASK_STATUSES, workQueue } from '@/lib/lead';
@@ -21,6 +22,7 @@ export async function GET(req: Request) {
   if (!agentAuthorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const agent = ROLE.safeParse(new URL(req.url).searchParams.get('agent'));
   if (!agent.success || !(await allowed(agent.data))) return NextResponse.json({ error: 'Pass ?agent=developer, ?agent=qa-tester or a hired agent' }, { status: 400 });
+  await clockIn(agent.data);
   if (await agentPaused(agent.data)) return NextResponse.json({ run: false, reason: 'paused' }, { headers: { 'Cache-Control': 'no-store' } });
   // A hire's first check-in means its routine is set up: it is active from now on.
   await markHireActive(agent.data);
@@ -65,6 +67,7 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues.slice(0, 5) }, { status: 400 });
   const { agent, updates } = parsed.data;
   if (!(await allowed(agent))) return NextResponse.json({ error: 'Unknown agent' }, { status: 400 });
+  await clockIn(agent);
   const errors: string[] = [];
   for (const u of updates) {
     const err = await applyTaskUpdate(agent, u);

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { agentAuthorized } from '@/lib/agentAuth';
+import { clockIn } from '@/lib/payroll';
 import { q } from '@/lib/db';
 import { agentPaused, applyLeadUpdate, LEAD_AGENT, leadQueue, REQUEST_STATUSES } from '@/lib/lead';
 import { addLiveEvents } from '@/lib/live';
@@ -14,6 +15,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(req: Request) {
   if (!agentAuthorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  await clockIn(LEAD_AGENT);
   if (await agentPaused(LEAD_AGENT)) return NextResponse.json({ run: false, reason: 'paused' }, { headers: { 'Cache-Control': 'no-store' } });
   const queue = await leadQueue();
   if (queue.requests.length) await addLiveEvents(LEAD_AGENT, [{ step: 'started', text: null }, { step: 'searching', text: 'Reviewing requests' }]);
@@ -58,6 +60,7 @@ const Update = z.object({
  */
 export async function POST(req: Request) {
   if (!agentAuthorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  await clockIn(LEAD_AGENT);
   let body: unknown;
   try {
     body = await req.json();

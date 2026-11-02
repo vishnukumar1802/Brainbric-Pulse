@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { agentAuthorized } from '@/lib/agentAuth';
+import { clockIn } from '@/lib/payroll';
+import { BA_AGENT } from '@/lib/docs';
 import { one } from '@/lib/db';
 import { PORTAL_URL } from '@/lib/news';
 
@@ -20,6 +22,7 @@ const MAX = 4 * 1024 * 1024;
  */
 export async function POST(req: Request) {
   if (!agentAuthorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  await clockIn(BA_AGENT);
   const name = (new URL(req.url).searchParams.get('name') ?? '').trim().replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 150);
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
   if (!name || !TYPES[ext]) return NextResponse.json({ error: 'Pass ?name=<file name> ending in .docx, .pdf or .xlsx' }, { status: 400 });

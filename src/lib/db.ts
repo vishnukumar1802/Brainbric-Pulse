@@ -440,6 +440,18 @@ CREATE TABLE IF NOT EXISTS doc_files (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Payroll: one row per agent shift (a run of calls to the portal with gaps under 20 minutes).
+CREATE TABLE IF NOT EXISTS agent_shifts (
+  id SERIAL PRIMARY KEY,
+  agent TEXT NOT NULL,
+  model TEXT NOT NULL,
+  calls INT NOT NULL DEFAULT 1,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS agent_shifts_agent_idx ON agent_shifts(agent, last_seen DESC);
+CREATE INDEX IF NOT EXISTS agent_shifts_started_idx ON agent_shifts(started_at);
+
 -- The owner's Teams (Microsoft 365) user id: the only sender the channel takes work and approvals from, to begin with.
 INSERT INTO settings (key, value) VALUES ('chat_allowed_ids', 'ef426f8a-d763-49b6-bd3a-5b46d77330e9') ON CONFLICT (key) DO NOTHING;
 `;

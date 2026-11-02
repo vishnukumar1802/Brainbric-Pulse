@@ -6,6 +6,7 @@ import { createRequest, decide, listProjects, REQUEST_STATUS, type RequestStatus
 import { PORTAL_URL } from './news';
 import { ticketCounts } from './support';
 import { docName, DOC_KINDS, queueDoc, type DocKind } from './docs';
+import { payrollSummary } from './payroll';
 
 /**
  * The AI team channel on Microsoft Teams. The Teams Desk agent reads the owner's messages there, works out who is
@@ -15,7 +16,7 @@ import { docName, DOC_KINDS, queueDoc, type DocKind } from './docs';
 export const DESK_AGENT = 'teams-desk';
 export const BOT_MARK = '🤖';
 
-export const CHAT_INTENTS = ['request', 'approve_plan', 'change_plan', 'answer', 'approve_live', 'cancel', 'approve_hire', 'reject_hire', 'note', 'status', 'document', 'help'] as const;
+export const CHAT_INTENTS = ['request', 'approve_plan', 'change_plan', 'answer', 'approve_live', 'cancel', 'approve_hire', 'reject_hire', 'note', 'status', 'document', 'payroll', 'help'] as const;
 export type ChatIntent = (typeof CHAT_INTENTS)[number];
 
 export type ChatIn = {
@@ -100,6 +101,7 @@ const HELP = [
   '- approve hire 3  /  decline hire 3',
   '- @Kavya status   @Aditya status   @Lakshmi status',
   '- @Ananya SRS for 12  /  project plan for 12  /  progress report for 12  /  test report  /  final report',
+  '- @Lakshmi payroll  (what each agent cost this month)',
   '- @Meena focus on engineering colleges in Coimbatore this week  (a note for her next run)',
 ].join('\n');
 
@@ -181,6 +183,12 @@ export async function handleChat(m: ChatIn): Promise<{ reply: string } | null> {
         : `The ${docName(kind)} for #${m.request_id} is already on my list. I'll post the link here when it's ready.`;
       const full = sign(ba, 'business-analyst', text);
       await q('UPDATE chat_inbox SET reply = $2 WHERE id = $1', [fresh[0].id, full]);
+      return { reply: full };
+    }
+    case 'payroll': {
+      // Payroll belongs to HR, whoever was mentioned.
+      const full = sign(members.find((x) => x.slug === 'hr-recruiter'), 'hr-recruiter', await payrollSummary());
+      await q('UPDATE chat_inbox SET reply = $2 WHERE id = $1', [fresh[0].id, full.slice(0, 4000)]);
       return { reply: full };
     }
     case 'note': {

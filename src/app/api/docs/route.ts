@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { agentAuthorized } from '@/lib/agentAuth';
+import { clockIn } from '@/lib/payroll';
 import { q } from '@/lib/db';
 import { takeNotes } from '@/lib/chat';
 import { BA_AGENT, docsQueue, recordDocs } from '@/lib/docs';
@@ -17,6 +18,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(req: Request) {
   if (!agentAuthorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  await clockIn(BA_AGENT);
   if (await agentPaused(BA_AGENT)) return NextResponse.json({ run: false, reason: 'paused' }, { headers: { 'Cache-Control': 'no-store' } });
   const documents = await docsQueue();
   const instructions = documents.length ? await takeNotes(BA_AGENT) : [];
@@ -32,6 +34,7 @@ const httpsUrl = z.string().trim().url().max(2000).refine((v) => v.startsWith('h
  */
 export async function POST(req: Request) {
   if (!agentAuthorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  await clockIn(BA_AGENT);
   let body: unknown;
   try {
     body = await req.json();

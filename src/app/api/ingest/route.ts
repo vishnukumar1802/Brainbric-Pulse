@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { agentAuthorized } from '@/lib/agentAuth';
+import { clockIn } from '@/lib/payroll';
 import { one, q } from '@/lib/db';
 import { addLiveEvents, type LiveStep } from '@/lib/live';
 import { newShareToken } from '@/lib/proposals';
@@ -139,6 +140,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues.slice(0, 10) }, { status: 400 });
   }
   const p = parsed.data;
+  await clockIn(p.agent);
 
   // A new agent slug becomes a new module in the portal automatically.
   await q(

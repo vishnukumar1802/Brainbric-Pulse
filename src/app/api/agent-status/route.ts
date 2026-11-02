@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { agentAuthorized } from '@/lib/agentAuth';
+import { clockIn } from '@/lib/payroll';
 import { one } from '@/lib/db';
 import { takeNotes } from '@/lib/chat';
 import { addLiveEvents } from '@/lib/live';
@@ -20,6 +21,7 @@ export async function GET(req: Request) {
   if (!/^[a-z0-9][a-z0-9-]{1,48}$/.test(slug)) {
     return NextResponse.json({ error: 'Pass ?agent=<slug>, for example ?agent=lead-hunter' }, { status: 400 });
   }
+  await clockIn(slug);
   const [row, focus, pricing] = await Promise.all([
     one<{ paused: boolean; paused_at: string | null; paused_by: string | null }>(
       'SELECT paused, paused_at, paused_by FROM agents WHERE slug = $1',

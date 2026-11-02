@@ -67,7 +67,7 @@ export default async function SettingsPage() {
               <div className="text-ink-700">
                 <p>
                   Pauses every agent and permanently deletes everything they generated: leads, proposals, activity, mail alerts, tickets,
-                  site checks, Team Lead requests and tasks, hires, Teams chat history, notes and documents. Numbering starts again at 1.
+                  site checks, Team Lead requests and tasks, hires, Teams chat history, notes, documents and payroll shifts. Numbering starts again at 1.
                 </p>
                 <p className="mt-2">
                   Kept: users, the agents, the projects and your settings. Then press <strong>Start all</strong> on the Agents page and the team

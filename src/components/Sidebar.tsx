@@ -13,6 +13,7 @@ import {
   Activity,
   Briefcase,
   UserPlus,
+  Wallet,
 } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import { can } from "@/lib/permissions";
@@ -118,6 +119,11 @@ export function SidebarContent({
             {can(user, "agents") && (
               <NavLink href="/hiring" count={counts.hiring}>
                 <UserPlus size={16} strokeWidth={1.75} /> Hiring
+              </NavLink>
+            )}
+            {can(user, "agents") && (
+              <NavLink href="/payroll">
+                <Wallet size={16} strokeWidth={1.75} /> Payroll
               </NavLink>
             )}
           </nav>

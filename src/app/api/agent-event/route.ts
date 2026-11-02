@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { agentAuthorized } from '@/lib/agentAuth';
+import { clockIn } from '@/lib/payroll';
 import { addLiveEvents, LIVE_STEPS } from '@/lib/live';
 
 export const dynamic = 'force-dynamic';
@@ -27,6 +28,7 @@ export async function POST(req: Request) {
   }
   const parsed = Body.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues.slice(0, 5) }, { status: 400 });
+  await clockIn(parsed.data.agent);
   await addLiveEvents(parsed.data.agent, [{ step: parsed.data.step, text: parsed.data.text }]);
   return NextResponse.json({ ok: true });
 }

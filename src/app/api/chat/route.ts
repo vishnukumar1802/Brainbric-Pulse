@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { agentAuthorized } from '@/lib/agentAuth';
+import { clockIn } from '@/lib/payroll';
 import { getSetting, one, setSetting } from '@/lib/db';
 import { CHAT_INTENTS, DESK_AGENT, handleChat, markSent, outbox, roster } from '@/lib/chat';
 import { DOC_KINDS } from '@/lib/docs';
@@ -19,6 +20,7 @@ const HOURS = { from: 9, to: 21 };
  */
 export async function GET(req: Request) {
   if (!agentAuthorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  await clockIn(DESK_AGENT);
   const paused = Boolean((await one<{ paused: boolean }>('SELECT paused FROM agents WHERE slug = $1', [DESK_AGENT]))?.paused);
   const h = istHour();
   if (paused || h < HOURS.from || h >= HOURS.to) {
@@ -61,6 +63,7 @@ const Message = z.object({
  */
 export async function POST(req: Request) {
   if (!agentAuthorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  await clockIn(DESK_AGENT);
   let body: unknown;
   try {
     body = await req.json();

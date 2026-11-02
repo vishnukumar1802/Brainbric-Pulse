@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { agentAuthorized } from '@/lib/agentAuth';
+import { clockIn } from '@/lib/payroll';
 import { one, q } from '@/lib/db';
 import { takeNotes } from '@/lib/chat';
 import { addLiveEvents } from '@/lib/live';
@@ -15,6 +16,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(req: Request) {
   if (!agentAuthorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  await clockIn(SUPPORT_AGENT);
   const row = await one<{ paused: boolean }>('SELECT paused FROM agents WHERE slug = $1', [SUPPORT_AGENT]);
   const go = supportShouldRun(Boolean(row?.paused));
   if (!go.run) return NextResponse.json(go, { headers: { 'Cache-Control': 'no-store' } });
@@ -52,6 +54,7 @@ const Ticket = z.object({
  */
 export async function POST(req: Request) {
   if (!agentAuthorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  await clockIn(SUPPORT_AGENT);
   let body: unknown;
   try {
     body = await req.json();

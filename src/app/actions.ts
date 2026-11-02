@@ -16,6 +16,7 @@ import { setTicketStatus, TICKET_STATUSES, type TicketStatus } from '@/lib/suppo
 import { createRequest, decide, saveProject } from '@/lib/lead';
 import { decideHire } from '@/lib/hr';
 import { DOC_KINDS, queueDoc, type DocKind } from '@/lib/docs';
+import { MODELS, payrollConfig, savePayrollConfig, type Model } from '@/lib/payroll';
 
 export type FormState = { error?: string; ok?: string; credentials?: { username: string; password: string } } | undefined;
 
@@ -220,7 +221,7 @@ export async function setAgentPausedAction(form: FormData): Promise<void> {
 const GENERATED_TABLES = [
   'leads', 'activities', 'proposals', 'documents', 'agent_runs', 'mail_alerts', 'agent_events',
   'tickets', 'site_checks', 'lead_requests', 'dev_tasks', 'lead_log', 'hires',
-  'chat_inbox', 'chat_outbox', 'agent_notes', 'doc_requests', 'project_docs', 'doc_files',
+  'chat_inbox', 'chat_outbox', 'agent_notes', 'doc_requests', 'project_docs', 'doc_files', 'agent_shifts',
 ];
 
 /**
@@ -232,7 +233,7 @@ export async function freshStartAction(_: FormState, form: FormData): Promise<Fo
   if (String(form.get('confirm') ?? '').trim().toUpperCase() !== 'FRESH START') return { error: 'Type FRESH START to confirm.' };
   await q('UPDATE agents SET paused = TRUE, paused_at = now(), paused_by = $1 WHERE enabled', [admin.name]);
   await q(`TRUNCATE ${GENERATED_TABLES.join(', ')} RESTART IDENTITY`);
-  await q("DELETE FROM settings WHERE key IN ('support_cursor', 'support_pending')");
+  await q("DELETE FROM settings WHERE key IN ('support_cursor', 'support_pending', 'payroll_warned')");
   // The Teams Desk starts reading from now, so old channel messages are not handled again.
   await setSetting('chat_cursor', new Date().toISOString());
   revalidatePath('/', 'layout');
@@ -649,4 +650,29 @@ export async function askDocAction(form: FormData): Promise<void> {
   if (!Number.isInteger(id) || !(DOC_KINDS as readonly string[]).includes(kind)) return;
   await queueDoc(id, kind as DocKind, user.name);
   revalidatePath(`/lead/${id}`);
+}
+
+// ---------- Payroll (admin) ----------
+
+/** Each agent's model and monthly budget (₹, empty for none), and the dollar rate used for the estimates. */
+export async function savePayrollAction(_: FormState, form: FormData): Promise<FormState> {
+  await requireAdmin();
+  const cfg = await payrollConfig();
+  const rate = Number(form.get('usd_inr'));
+  if (!(rate >= 10 && rate <= 500)) return { error: 'Enter the dollar rate in rupees, like 88.' };
+  const agents = await q<{ slug: string }>('SELECT slug FROM agents WHERE enabled');
+  const models: Record<string, Model> = {};
+  const budgets: Record<string, number> = {};
+  for (const { slug } of agents) {
+    const m = String(form.get(`model_${slug}`) ?? '');
+    if ((MODELS as readonly string[]).includes(m)) models[slug] = m as Model;
+    const b = String(form.get(`budget_${slug}`) ?? '').replace(/[,\s₹]/g, '');
+    if (!b) continue;
+    const n = Number(b);
+    if (!(n > 0 && n <= 10_000_000)) return { error: `Budget for ${slug}: enter an amount in rupees, or leave it empty.` };
+    budgets[slug] = Math.round(n);
+  }
+  await savePayrollConfig({ ...cfg, usd_inr: rate, models, budgets });
+  revalidatePath('/payroll');
+  return { ok: 'Payroll settings saved.' };
 }

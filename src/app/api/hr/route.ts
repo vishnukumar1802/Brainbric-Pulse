@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { agentAuthorized } from '@/lib/agentAuth';
+import { clockIn } from '@/lib/payroll';
 import { q } from '@/lib/db';
 import { HR_AGENT, hrQueue, proposeHires, SLUG_RE } from '@/lib/hr';
 import { agentPaused } from '@/lib/lead';
@@ -17,6 +18,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(req: Request) {
   if (!agentAuthorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  await clockIn(HR_AGENT);
   if (await agentPaused(HR_AGENT)) return NextResponse.json({ run: false, reason: 'paused' }, { headers: { 'Cache-Control': 'no-store' } });
   const queue = await hrQueue();
   const instructions = await takeNotes(HR_AGENT);
@@ -47,6 +49,7 @@ const Hire = z.object({
  */
 export async function POST(req: Request) {
   if (!agentAuthorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  await clockIn(HR_AGENT);
   let body: unknown;
   try {
     body = await req.json();

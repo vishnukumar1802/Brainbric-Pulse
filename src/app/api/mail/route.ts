@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { agentAuthorized } from '@/lib/agentAuth';
-import { addMail, ensureMailAgent } from '@/lib/mail';
+import { clockIn } from '@/lib/payroll';
+import { addMail, ensureMailAgent, MAIL_AGENT } from '@/lib/mail';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,7 @@ const Mail = z.object({
  */
 export async function POST(req: Request) {
   if (!agentAuthorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  await clockIn(MAIL_AGENT);
   let body: unknown;
   try {
     body = await req.json();

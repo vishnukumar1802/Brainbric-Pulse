@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { agentAuthorized } from '@/lib/agentAuth';
+import { clockIn } from '@/lib/payroll';
 import { one } from '@/lib/db';
 import { ensureMailAgent, istHour, MAIL_AGENT, MAIL_HOURS, mailCursor } from '@/lib/mail';
 
@@ -13,6 +14,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(req: Request) {
   if (!agentAuthorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  await clockIn(MAIL_AGENT);
   await ensureMailAgent();
   const row = await one<{ paused: boolean }>('SELECT paused FROM agents WHERE slug = $1', [MAIL_AGENT]);
   const hour = istHour();
